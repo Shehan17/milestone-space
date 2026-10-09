@@ -1,0 +1,73 @@
+<p align="center">
+  <img src="app-icon.png" alt="MilestoneSpace icon" width="96" />
+</p>
+
+<h1 align="center">MilestoneSpace</h1>
+
+<p align="center">A personal desktop workspace for tracking projects, milestones, tasks and deadlines.</p>
+
+MilestoneSpace is a local-first desktop app for keeping client work, personal projects and
+study in one place. Everything is stored in a local SQLite database on your computer: no account,
+no server, no sync.
+
+## Features
+
+- **Dashboard**: pinned projects for quick access, plus what's overdue, due this week, and upcoming milestones.
+  Filter by project type.
+- **Projects**: client, personal or study projects, each with a color, status and deadline.
+- **Project page** with tabs:
+  - **Overview**: progress, next deadline and the nearest upcoming tasks and milestones.
+  - **Tasks** and **Milestones**: priorities, due dates, and tasks linked to milestones.
+  - **Info**: markdown notes that save automatically, links (GitHub, Figma, Drive, store pages,
+    local folders...) that open in your browser or Explorer, and custom label/value details
+    with one-click copy.
+- **Tasks**: every task across all projects, filterable by status, priority and project.
+- **Clients**: optional clients for client projects.
+- **Themes**: two dark and two light color themes, picked from Settings.
+- Friendly deadlines: overdue in red, due within 3 days in orange.
+
+## Tech stack
+
+- [Tauri 2](https://tauri.app/) (Rust) for the desktop shell
+- [SvelteKit](https://svelte.dev/) with Svelte 5 runes and TypeScript, as a static single-page app
+- [Tailwind CSS v4](https://tailwindcss.com/)
+- SQLite through [tauri-plugin-sql](https://v2.tauri.app/plugin/sql/), with versioned migrations
+- [marked](https://marked.js.org/) and [DOMPurify](https://github.com/cure53/DOMPurify) for note previews
+
+## Getting started
+
+Prerequisites: [Node.js](https://nodejs.org/) 20+, [Rust](https://www.rust-lang.org/tools/install), and the
+[Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your platform.
+
+```bash
+npm install
+npm run tauri dev     # run the app in development
+npm run tauri build   # build an installer
+```
+
+Other scripts:
+
+```bash
+npm run check   # type-check and lint the Svelte code
+npm run build   # build the frontend only
+```
+
+## Data
+
+The database is created on first launch at `%APPDATA%\com.shehan.milestonespace\tracker.db` on Windows
+(the folder comes from the app `identifier` in `src-tauri/tauri.conf.json`). Schema changes are applied
+automatically by the migrations in `src/lib/migrations.ts`. Back up that file to keep your data safe.
+
+## Project structure
+
+```
+src/
+  lib/
+    db.ts            all SQL queries (typed functions per table)
+    migrations.ts    schema migrations, tracked with PRAGMA user_version
+    types.ts         shared types
+    theme.ts         color themes
+    components/      reusable UI components
+  routes/            pages: dashboard, projects, tasks, clients, settings
+src-tauri/           Tauri (Rust) app, config and icons
+```

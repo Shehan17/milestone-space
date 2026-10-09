@@ -1,0 +1,193 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+/*
+ * Color themes (picked on the Settings page, see src/lib/theme.ts).
+ * Components only use zinc (neutrals) and violet (accent) plus a few status colors, so each theme
+ * just redefines those palette variables. "zinc-950" means "page background" and "zinc-100"
+ * means "strongest text" in every theme; light themes run the scale the other way round.
+ * The palettes are deliberately soft: dark themes avoid pure black and pure white text,
+ * light themes avoid pure white surfaces.
+ * color-scheme makes native date pickers, selects and scrollbars match.
+ */
+
+/* Midnight (default): soft charcoal with a violet accent. On :root so it also applies with no theme set. */
+:root {
+  color-scheme: dark;
+  --color-zinc-100: #e4e4e9;
+  --color-zinc-200: #d4d4da;
+  --color-zinc-300: #bdbdc5;
+  --color-zinc-400: #9c9ca6;
+  --color-zinc-500: #7c7c87;
+  --color-zinc-600: #5a5a64;
+  --color-zinc-700: #41414a;
+  --color-zinc-800: #2f2f36;
+  --color-zinc-900: #222228;
+  --color-zinc-950: #18181c;
+  --color-violet-300: #c4b8f5;
+  --color-violet-400: #a993f0;
+  --color-violet-500: #8f73e6;
+  --color-violet-600: #7458d0;
+}
+
+/* Deep Ocean: muted blue slate with a soft sky-blue accent. */
+:root[data-theme="ocean"] {
+  --color-zinc-100: #dfe5ec;
+  --color-zinc-200: #cdd5df;
+  --color-zinc-300: #b4bfcc;
+  --color-zinc-400: #93a1b2;
+  --color-zinc-500: #728196;
+  --color-zinc-600: #526075;
+  --color-zinc-700: #3a475a;
+  --color-zinc-800: #2a3546;
+  --color-zinc-900: #1e2836;
+  --color-zinc-950: #161e2a;
+  --color-violet-300: #a3d4ee;
+  --color-violet-400: #74bde3;
+  --color-violet-500: #4ea3d2;
+  --color-violet-600: #2f80b2;
+}
+
+/* Light themes share darker, slightly muted status colors so they stay readable without glaring. */
+:root[data-theme="light"],
+:root[data-theme="sand"] {
+  color-scheme: light;
+  --color-red-200: #8f2a2a;
+  --color-red-300: #a83232;
+  --color-red-400: #c53b3b;
+  --color-red-950: #f1dcdc;
+  --color-orange-400: #cc5a1a;
+  --color-amber-300: #9a5a10;
+  --color-amber-400: #c27c12;
+  --color-emerald-300: #1f6b52;
+  --color-emerald-400: #2b8466;
+}
+
+/* Daylight: soft gray with a violet accent. */
+:root[data-theme="light"] {
+  --color-zinc-100: #202026;
+  --color-zinc-200: #2c2c33;
+  --color-zinc-300: #3d3d45;
+  --color-zinc-400: #54545d;
+  --color-zinc-500: #6c6c76;
+  --color-zinc-600: #95959f;
+  --color-zinc-700: #c0c0c8;
+  --color-zinc-800: #d3d3da;
+  --color-zinc-900: #ececf0;
+  --color-zinc-950: #e2e2e7;
+  --color-violet-300: #5b3fb0;
+  --color-violet-400: #6849c4;
+  --color-violet-500: #7a5ad6;
+  --color-violet-600: #6849c4;
+}
+
+/* Sand: warm paper tones with a teal accent. */
+:root[data-theme="sand"] {
+  --color-zinc-100: #24201b;
+  --color-zinc-200: #322c26;
+  --color-zinc-300: #433c35;
+  --color-zinc-400: #5a5249;
+  --color-zinc-500: #746b60;
+  --color-zinc-600: #9d9386;
+  --color-zinc-700: #c7bdae;
+  --color-zinc-800: #d8cfc2;
+  --color-zinc-900: #efe9df;
+  --color-zinc-950: #e6dfd3;
+  --color-violet-300: #15524c;
+  --color-violet-400: #1a655e;
+  --color-violet-500: #227a71;
+  --color-violet-600: #1a655e;
+}
+
+body {
+  @apply bg-zinc-950 text-sm text-zinc-300 antialiased;
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-md border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/40 focus:outline-none;
+  }
+  .btn {
+    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-violet-600 text-white hover:bg-violet-500;
+  }
+  .btn-ghost {
+    @apply text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100;
+  }
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-500;
+  }
+  .icon-btn {
+    @apply cursor-pointer rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200;
+  }
+  .card {
+    @apply rounded-lg border border-zinc-800 bg-zinc-900/50;
+  }
+  .checkbox {
+    @apply size-4 shrink-0 cursor-pointer accent-violet-500;
+  }
+}
+
+/* Rendered markdown (project notes preview). Preflight strips list/heading styles, so restore them. */
+.markdown {
+  @apply text-sm leading-relaxed text-zinc-300;
+
+  & > * + * {
+    @apply mt-3;
+  }
+  & h1 {
+    @apply text-lg font-semibold text-zinc-100;
+  }
+  & h2 {
+    @apply text-base font-semibold text-zinc-100;
+  }
+  & h3,
+  & h4 {
+    @apply text-sm font-semibold text-zinc-100;
+  }
+  & ul {
+    @apply list-disc pl-5;
+  }
+  & ol {
+    @apply list-decimal pl-5;
+  }
+  & li + li {
+    @apply mt-1;
+  }
+  & a {
+    @apply cursor-pointer text-violet-400 underline underline-offset-2 hover:text-violet-300;
+  }
+  & strong {
+    @apply font-semibold text-zinc-100;
+  }
+  & code {
+    @apply rounded bg-zinc-800 px-1 py-0.5 font-mono text-xs text-zinc-200;
+  }
+  & pre {
+    @apply overflow-x-auto rounded-md border border-zinc-800 bg-zinc-950 p-3;
+  }
+  & pre code {
+    @apply bg-transparent p-0;
+  }
+  & blockquote {
+    @apply border-l-2 border-violet-500/60 pl-3 text-zinc-400;
+  }
+  & hr {
+    @apply border-zinc-800;
+  }
+  & table {
+    @apply border-collapse text-xs;
+  }
+  & th,
+  & td {
+    @apply border border-zinc-800 px-2 py-1 text-left;
+  }
+  & input[type="checkbox"] {
+    @apply mr-1.5 accent-violet-500;
+  }
+}
