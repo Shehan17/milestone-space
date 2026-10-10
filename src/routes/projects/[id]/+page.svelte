@@ -13,7 +13,8 @@
   import ProjectNotes from "$lib/components/ProjectNotes.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import Tabs from "$lib/components/Tabs.svelte";
-  import TaskForm from "$lib/components/TaskForm.svelte";
+  import TaskBoard from "$lib/components/TaskBoard.svelte";
+  import TaskForm, { emptyTask } from "$lib/components/TaskForm.svelte";
   import TaskRow from "$lib/components/TaskRow.svelte";
   import {
     addMilestone,
@@ -25,13 +26,18 @@
     getMilestones,
     getProject,
     getTasks,
+    moveTaskOnBoard,
     setMilestoneDone,
     setProjectPinned,
     setTaskDone,
+    setTasksPlanned,
     updateMilestone,
     updateProject,
     updateTask,
   } from "$lib/db";
+  import { todayString } from "$lib/dates";
+  import { openFolder, openInVsCode } from "$lib/system";
+  import { useShortcuts } from "$lib/shortcuts.svelte";
   import {
     TYPE_LABELS,
     type Client,
@@ -41,6 +47,7 @@
     type ProjectInput,
     type Task,
     type TaskInput,
+    type TaskStatus,
   } from "$lib/types";
 
   let projectId = $derived(Number(page.params.id));
@@ -53,6 +60,11 @@
 
   async function load(id: number) {
     const [p, m, t] = await Promise.all([getProject(id), getMilestones(id), getTasks(id)]);
+    if (id !== project?.id) {
+      // Another project: its own view, and no filter carried over.
+      taskView = readTaskView(id);
+      milestoneFilter = "all";
+    }
     project = p;
     milestones = m;
     tasks = t;
@@ -117,6 +129,7 @@
       status: project.status,
       deadline: project.deadline,
       color: project.color,
+      local_path: project.local_path,
     };
     projectFormOpen = true;
   }
@@ -178,14 +191,59 @@
     await reload();
   }
 
-  // ----- Tasks -----
+  // ----- Tasks: list or board, optionally one milestone -----
+  type TaskView = "list" | "board";
+  let taskView = $state<TaskView>("list");
+  let milestoneFilter = $state<number | "none" | "all">("all");
+
+  // The list/board choice is remembered per project (a display preference, so localStorage).
+  const viewKey = (id: number) => `milestonespace.taskView.${id}`;
+
+  function readTaskView(id: number): TaskView {
+    try {
+      return localStorage.getItem(viewKey(id)) === "board" ? "board" : "list";
+    } catch {
+      return "list";
+    }
+  }
+
+  function setTaskView(view: TaskView) {
+    taskView = view;
+    try {
+      localStorage.setItem(viewKey(projectId), view);
+    } catch {
+      // Still applied until the page is left.
+    }
+  }
+
+  let visibleTasks = $derived(
+    milestoneFilter === "all"
+      ? tasks
+      : tasks.filter((t) => t.milestone_id === (milestoneFilter === "none" ? null : milestoneFilter))
+  );
+
+  /** Drag and drop: show the move right away, then save and reload. */
+  async function moveTask(task: Task, status: TaskStatus, orderedIds: number[]) {
+    tasks = tasks.map((t) => {
+      const order = orderedIds.indexOf(t.id);
+      if (t.id === task.id) return { ...t, status, is_done: status === "done", board_order: order };
+      return order === -1 ? t : { ...t, board_order: order };
+    });
+    await moveTaskOnBoard(task.id, status, orderedIds);
+    await reload();
+  }
+
   let taskFormOpen = $state(false);
   let editingTaskId = $state<number | null>(null);
-  let taskDraft = $state<TaskInput>({ project_id: 0, milestone_id: null, title: "", priority: "medium", due_date: null });
+  let taskDraft = $state<TaskInput>(emptyTask(0));
 
-  function openNewTask(milestoneId: number | null = null) {
+  /** New tasks go into the filtered milestone, and the board column they were added from. */
+  function openNewTask(
+    milestoneId: number | null = typeof milestoneFilter === "number" ? milestoneFilter : null,
+    status: TaskStatus = "todo"
+  ) {
     editingTaskId = null;
-    taskDraft = { project_id: projectId, milestone_id: milestoneId, title: "", priority: "medium", due_date: null };
+    taskDraft = emptyTask(projectId, { milestone_id: milestoneId, status });
     taskFormOpen = true;
   }
 
@@ -197,6 +255,7 @@
       title: t.title,
       priority: t.priority,
       due_date: t.due_date,
+      status: t.status,
     };
     taskFormOpen = true;
   }
@@ -214,10 +273,31 @@
     await reload();
   }
 
+  async function togglePlanned(t: Task) {
+    await setTasksPlanned([t.id], t.planned_for === todayString() ? null : todayString());
+    await reload();
+  }
+
   async function removeTask(t: Task) {
     await deleteTask(t.id);
     await reload();
   }
+
+  useShortcuts({
+    n: () => openNewTask(),
+    m: openNewMilestone,
+    e: openProjectEdit,
+    o: () => project?.local_path && openFolder(project.local_path),
+    v: () => project?.local_path && openInVsCode(project.local_path),
+    "1": () => (tab = "overview"),
+    "2": () => (tab = "tasks"),
+    "3": () => (tab = "milestones"),
+    "4": () => (tab = "info"),
+    b: () => {
+      tab = "tasks";
+      setTaskView(taskView === "board" ? "list" : "board");
+    },
+  });
 </script>
 
 <div class="flex min-h-14 items-center gap-2 border-b border-zinc-800/80 px-8 py-3">
@@ -229,6 +309,16 @@
     <ProjectDot color={project.color} />
     <span class="truncate text-sm text-zinc-300">{project.name}</span>
     <div class="ml-auto flex gap-2">
+      {#if project.local_path}
+        {@const path = project.local_path}
+        <button type="button" class="btn btn-ghost" title="Open {path} in Explorer (O)" onclick={() => openFolder(path)}>
+          <Icon name="folder" size={14} />Open folder
+        </button>
+        <button type="button" class="btn btn-ghost" title="Open {path} in VS Code (V)" onclick={() => openInVsCode(path)}>
+          <Icon name="code" size={14} />VS Code
+        </button>
+        <span class="my-1 w-px bg-zinc-800"></span>
+      {/if}
       <button
         type="button"
         class="btn btn-ghost {project.pinned_at ? 'text-violet-400' : ''}"
@@ -274,8 +364,18 @@
         {#if project.description}
           <p class="mt-3 text-sm whitespace-pre-line text-zinc-400">{project.description}</p>
         {/if}
-        <div class="mt-4 border-t border-zinc-800 pt-3 text-xs text-zinc-500">
-          Deadline: <DeadlineLabel date={project.deadline} done={project.status === "completed"} />
+        <div class="mt-4 flex flex-wrap gap-x-6 gap-y-1 border-t border-zinc-800 pt-3 text-xs text-zinc-500">
+          <span>Deadline: <DeadlineLabel date={project.deadline} done={project.status === "completed"} /></span>
+          <span class="min-w-0 truncate">
+            Folder:
+            {#if project.local_path}
+              <span class="font-mono text-zinc-400">{project.local_path}</span>
+            {:else}
+              <button type="button" class="cursor-pointer text-violet-400 hover:text-violet-300" onclick={openProjectEdit}>
+                Set a folder
+              </button>
+            {/if}
+          </span>
         </div>
       </section>
 
@@ -391,19 +491,48 @@
       </section>
 
     {:else if tab === "tasks"}
-      <section class="card">
-        <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
-          <h2 class="text-xs font-semibold text-zinc-300">Tasks <span class="ml-1 text-zinc-500">{tasks.length}</span></h2>
-          <button type="button" class="btn btn-ghost px-2 py-1 text-xs" onclick={() => openNewTask()}>
-            <Icon name="plus" size={12} />Add task
-          </button>
-        </div>
-        {#each tasks as task (task.id)}
-          <TaskRow {task} ontoggle={toggleTask} onedit={openEditTask} ondelete={removeTask} />
-        {:else}
-          <EmptyState message="No tasks yet." />
-        {/each}
-      </section>
+      <div class="flex flex-wrap items-center gap-3">
+        <Tabs
+          options={[
+            { value: "list", label: "List" },
+            { value: "board", label: "Board" },
+          ]}
+          value={taskView}
+          onchange={setTaskView}
+        />
+        {#if milestones.length > 0}
+          <select class="input w-52 py-1 text-xs" bind:value={milestoneFilter} aria-label="Filter by milestone">
+            <option value="all">All milestones</option>
+            {#each milestones as m (m.id)}
+              <option value={m.id}>{m.title}</option>
+            {/each}
+            <option value="none">No milestone</option>
+          </select>
+        {/if}
+        <button type="button" class="btn btn-ghost ml-auto px-2 py-1 text-xs" onclick={() => openNewTask()}>
+          <Icon name="plus" size={12} />Add task
+        </button>
+      </div>
+
+      {#if taskView === "board"}
+        <TaskBoard
+          tasks={visibleTasks}
+          onmove={moveTask}
+          onedit={openEditTask}
+          onadd={(status) => openNewTask(undefined, status)}
+        />
+      {:else}
+        <section class="card">
+          <h2 class="border-b border-zinc-800 px-4 py-2.5 text-xs font-semibold text-zinc-300">
+            Tasks <span class="ml-1 text-zinc-500">{visibleTasks.length}</span>
+          </h2>
+          {#each visibleTasks as task (task.id)}
+            <TaskRow {task} ontoggle={toggleTask} onedit={openEditTask} ondelete={removeTask} onplan={togglePlanned} />
+          {:else}
+            <EmptyState message={tasks.length === 0 ? "No tasks yet." : "No tasks in this milestone."} />
+          {/each}
+        </section>
+      {/if}
     {:else}
       <ProjectNotes {projectId} />
       <div class="grid gap-5 lg:grid-cols-2">

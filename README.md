@@ -17,10 +17,18 @@ no server, no sync.
 - **Projects**: client, personal or study projects, each with a color, status and deadline.
 - **Project page** with tabs:
   - **Overview**: progress, next deadline and the nearest upcoming tasks and milestones.
-  - **Tasks** and **Milestones**: priorities, due dates, and tasks linked to milestones.
+  - **Tasks** and **Milestones**: priorities, due dates, and tasks linked to milestones. Tasks can
+    be shown as a list or as a **Kanban board** (To do / In progress / Done) with drag and drop,
+    filtered by milestone.
   - **Info**: markdown notes that save automatically, links (GitHub, Figma, Drive, store pages,
     local folders...) that open in your browser or Explorer, and custom label/value details
     with one-click copy.
+- **Today**: pick the tasks you'll do today from all projects; the app opens on this list.
+- **Quick capture**: press **Ctrl+Shift+Space** anywhere, even with the app hidden, type an idea
+  and press Enter. It lands in the **Inbox**, where you turn items into tasks later.
+- **Project folders**: save each project's local folder and open it in Explorer or VS Code.
+- **Keyboard shortcuts** throughout the app (press **?** to see them).
+- Runs in the tray: closing the window keeps it running, and it can start with Windows.
 - **Tasks**: every task across all projects, filterable by status, priority and project.
 - **Clients**: optional clients for client projects.
 - **Themes**: two dark and two light color themes, picked from Settings.

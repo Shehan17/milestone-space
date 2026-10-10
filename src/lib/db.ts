@@ -2,6 +2,7 @@ import Database from "@tauri-apps/plugin-sql";
 import type {
   Client,
   ClientInput,
+  InboxItem,
   Milestone,
   MilestoneInput,
   Project,
@@ -11,16 +12,28 @@ import type {
   ProjectLink,
   ProjectLinkInput,
   ProjectNote,
+  ProjectTemplate,
+  ProjectTemplateInput,
+  Priority,
   Task,
   TaskInput,
+  TaskStatus,
 } from "./types";
 import { MIGRATIONS, migrationSql } from "./migrations";
+import type { Outline } from "./templates";
+
+/**
+ * `npm run tauri dev` uses its own database so development never touches real data.
+ * Installed builds (`npm run tauri build`) use tracker.db. Never rename tracker.db:
+ * the installed app would open a new empty database.
+ */
+const DB_URL = import.meta.env.DEV ? "sqlite:tracker-dev.db" : "sqlite:tracker.db";
 
 let dbPromise: Promise<Database> | null = null;
 
 async function open(): Promise<Database> {
   // Foreign keys are enabled on every connection by default (sqlx).
-  const db = await Database.load("sqlite:tracker.db");
+  const db = await Database.load(DB_URL);
   await migrate(db);
   return db;
 }
@@ -123,7 +136,7 @@ export async function getProject(id: number): Promise<Project | null> {
   return rows[0] ?? null;
 }
 
-/** Values in column order: type, client_id, name, description, status, deadline, color. */
+/** Values in column order: type, client_id, name, description, status, deadline, color, local_path. */
 function projectValues(input: ProjectInput) {
   return [
     input.type,
@@ -133,24 +146,27 @@ function projectValues(input: ProjectInput) {
     input.status,
     dateOrNull(input.deadline),
     input.color,
+    input.local_path?.trim() || null,
   ];
 }
 
-export async function addProject(input: ProjectInput): Promise<void> {
+/** Returns the new project's id. */
+export async function addProject(input: ProjectInput): Promise<number> {
   const db = await getDb();
-  await db.execute(
-    `INSERT INTO projects (type, client_id, name, description, status, deadline, color)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+  const result = await db.execute(
+    `INSERT INTO projects (type, client_id, name, description, status, deadline, color, local_path)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     projectValues(input)
   );
+  return result.lastInsertId!;
 }
 
 export async function updateProject(id: number, input: ProjectInput): Promise<void> {
   const db = await getDb();
   await db.execute(
     `UPDATE projects SET type = $1, client_id = $2, name = $3, description = $4, status = $5,
-       deadline = $6, color = $7
-     WHERE id = $8`,
+       deadline = $6, color = $7, local_path = $8
+     WHERE id = $9`,
     [...projectValues(input), id]
   );
 }
@@ -236,31 +252,97 @@ export async function getTasks(projectId?: number): Promise<Task[]> {
   return toBool(rows);
 }
 
-export async function addTask(input: TaskInput): Promise<void> {
+/** Values in column order: project_id, milestone_id, title, priority, due_date, status, is_done. */
+function taskValues(input: TaskInput) {
+  return [
+    input.project_id,
+    input.milestone_id,
+    input.title.trim(),
+    input.priority,
+    dateOrNull(input.due_date),
+    input.status,
+    input.status === "done" ? 1 : 0, // is_done always follows status
+  ];
+}
+
+/** Adds a task, optionally already planned for a day (the Today page's "New task"). */
+export async function addTask(input: TaskInput, plannedFor: string | null = null): Promise<void> {
   const db = await getDb();
   await db.execute(
-    "INSERT INTO tasks (project_id, milestone_id, title, priority, due_date) VALUES ($1, $2, $3, $4, $5)",
-    [input.project_id, input.milestone_id, input.title.trim(), input.priority, dateOrNull(input.due_date)]
+    `INSERT INTO tasks (project_id, milestone_id, title, priority, due_date, status, is_done, planned_for)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [...taskValues(input), plannedFor]
   );
 }
 
 export async function updateTask(id: number, input: TaskInput): Promise<void> {
   const db = await getDb();
   await db.execute(
-    `UPDATE tasks SET project_id = $1, milestone_id = $2, title = $3, priority = $4, due_date = $5
-     WHERE id = $6`,
-    [input.project_id, input.milestone_id, input.title.trim(), input.priority, dateOrNull(input.due_date), id]
+    `UPDATE tasks SET project_id = $1, milestone_id = $2, title = $3, priority = $4, due_date = $5,
+       status = $6, is_done = $7
+     WHERE id = $8`,
+    [...taskValues(input), id]
   );
 }
 
+/** The checkbox: done, or back to To do. */
 export async function setTaskDone(id: number, done: boolean): Promise<void> {
   const db = await getDb();
-  await db.execute("UPDATE tasks SET is_done = $1 WHERE id = $2", [done ? 1 : 0, id]);
+  await db.execute("UPDATE tasks SET is_done = $1, status = $2 WHERE id = $3", [done ? 1 : 0, done ? "done" : "todo", id]);
+}
+
+/**
+ * Drops a task into a board column. orderedIds is that column's tasks, top to bottom, with the
+ * moved task in its new place; their board_order is renumbered to match.
+ */
+export async function moveTaskOnBoard(id: number, status: TaskStatus, orderedIds: number[]): Promise<void> {
+  const db = await getDb();
+  await db.execute("UPDATE tasks SET status = $1, is_done = $2 WHERE id = $3", [status, status === "done" ? 1 : 0, id]);
+  if (orderedIds.length === 0) return;
+  const n = orderedIds.length;
+  const cases = orderedIds.map((_, i) => `WHEN $${2 * i + 1} THEN $${2 * i + 2}`).join(" ");
+  const inList = orderedIds.map((_, i) => `$${2 * n + i + 1}`).join(", ");
+  await db.execute(`UPDATE tasks SET board_order = CASE id ${cases} END WHERE id IN (${inList})`, [
+    ...orderedIds.flatMap((taskId, i) => [taskId, i]),
+    ...orderedIds,
+  ]);
+}
+
+/** Plans tasks for a day ("YYYY-MM-DD"), or takes them off any day's list (null). */
+export async function setTasksPlanned(ids: number[], day: string | null): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  const placeholders = ids.map((_, i) => `$${i + 2}`).join(", ");
+  await db.execute(`UPDATE tasks SET planned_for = $1 WHERE id IN (${placeholders})`, [day, ...ids]);
 }
 
 export async function deleteTask(id: number): Promise<void> {
   const db = await getDb();
   await db.execute("DELETE FROM tasks WHERE id = $1", [id]);
+}
+
+// ---------- Inbox ----------
+
+/** Newest first. */
+export async function getInboxItems(): Promise<InboxItem[]> {
+  const db = await getDb();
+  return db.select<InboxItem[]>("SELECT * FROM inbox_items ORDER BY created_at DESC, id DESC");
+}
+
+export async function countInboxItems(): Promise<number> {
+  const db = await getDb();
+  const [{ n }] = await db.select<{ n: number }[]>("SELECT COUNT(*) AS n FROM inbox_items");
+  return n;
+}
+
+export async function addInboxItem(text: string): Promise<void> {
+  const db = await getDb();
+  await db.execute("INSERT INTO inbox_items (text) VALUES ($1)", [text.trim()]);
+}
+
+export async function deleteInboxItem(id: number): Promise<void> {
+  const db = await getDb();
+  await db.execute("DELETE FROM inbox_items WHERE id = $1", [id]);
 }
 
 // ---------- Project info: notes, links, details ----------
@@ -378,3 +460,90 @@ export async function deleteProjectDetail(id: number): Promise<void> {
 }
 
 export const moveProjectDetail = (id: number, direction: -1 | 1) => moveRow("project_details", id, direction);
+
+// ---------- Project templates ----------
+
+export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
+  const db = await getDb();
+  return db.select<ProjectTemplate[]>("SELECT * FROM project_templates ORDER BY name COLLATE NOCASE");
+}
+
+function templateValues(input: ProjectTemplateInput) {
+  return [input.name.trim(), input.type, input.color, input.description.trim(), input.outline.trim()];
+}
+
+export async function addProjectTemplate(input: ProjectTemplateInput): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    "INSERT INTO project_templates (name, type, color, description, outline) VALUES ($1, $2, $3, $4, $5)",
+    templateValues(input)
+  );
+}
+
+export async function updateProjectTemplate(id: number, input: ProjectTemplateInput): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    "UPDATE project_templates SET name = $1, type = $2, color = $3, description = $4, outline = $5 WHERE id = $6",
+    [...templateValues(input), id]
+  );
+}
+
+export async function deleteProjectTemplate(id: number): Promise<void> {
+  const db = await getDb();
+  await db.execute("DELETE FROM project_templates WHERE id = $1", [id]);
+}
+
+/** Adds a template's milestones and tasks to a (new) project. */
+export async function addOutlineToProject(projectId: number, outline: Outline, priority: Priority): Promise<void> {
+  const db = await getDb();
+  const addTasks = async (titles: string[], milestoneId: number | null) => {
+    for (const title of titles) {
+      await addTask({ project_id: projectId, milestone_id: milestoneId, title, priority, due_date: null, status: "todo" });
+    }
+  };
+  await addTasks(outline.tasks, null);
+  for (const milestone of outline.milestones) {
+    const result = await db.execute("INSERT INTO milestones (project_id, title) VALUES ($1, $2)", [projectId, milestone.title]);
+    await addTasks(milestone.tasks, result.lastInsertId!);
+  }
+}
+
+// ---------- Backup and export ----------
+
+/**
+ * Writes a complete copy of the database to a new file. VACUUM INTO gives a consistent snapshot
+ * even while the app is running (the database uses a write-ahead log, so copying the file
+ * itself could miss recent changes).
+ */
+export async function backupDatabaseTo(path: string): Promise<void> {
+  const db = await getDb();
+  await db.execute("VACUUM INTO $1", [path]);
+}
+
+/** Closes every connection, so a restore can replace the file. Reload the page afterwards. */
+export async function closeDatabase(): Promise<void> {
+  const db = await getDb();
+  await db.close();
+  dbPromise = null;
+}
+
+export const EXPORT_TABLES = [
+  "clients",
+  "projects",
+  "milestones",
+  "tasks",
+  "inbox_items",
+  "project_notes",
+  "project_links",
+  "project_details",
+  "project_templates",
+] as const;
+
+/** Every row of every table, as stored, for the JSON export. */
+export async function getAllData(): Promise<Record<(typeof EXPORT_TABLES)[number], Record<string, unknown>[]>> {
+  const db = await getDb();
+  const entries = await Promise.all(
+    EXPORT_TABLES.map(async (table) => [table, await db.select<Record<string, unknown>[]>(`SELECT * FROM ${table} ORDER BY id`)])
+  );
+  return Object.fromEntries(entries);
+}

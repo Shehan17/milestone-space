@@ -1,18 +1,23 @@
 <script lang="ts">
   import { page } from "$app/state";
+  import { inbox } from "$lib/inbox.svelte";
+  import { helpState } from "$lib/shortcuts.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
 
-  type Link = { href: string; label: string; icon: IconName };
+  /** key: the letter after G that opens the page (see shortcuts.svelte.ts). */
+  type Link = { href: string; label: string; icon: IconName; key: string; badge?: number };
 
-  const mainLinks: Link[] = [
-    { href: "/", label: "Dashboard", icon: "dashboard" },
-    { href: "/projects", label: "Projects", icon: "projects" },
-    { href: "/tasks", label: "Tasks", icon: "tasks" },
-  ];
+  let mainLinks: Link[] = $derived([
+    { href: "/", label: "Today", icon: "sun", key: "T" },
+    { href: "/inbox", label: "Inbox", icon: "inbox", key: "I", badge: inbox.count },
+    { href: "/dashboard", label: "Dashboard", icon: "dashboard", key: "D" },
+    { href: "/projects", label: "Projects", icon: "projects", key: "P" },
+    { href: "/tasks", label: "Tasks", icon: "tasks", key: "A" },
+  ]);
 
-  const secondaryLinks: Link[] = [{ href: "/clients", label: "Clients", icon: "clients" }];
+  const secondaryLinks: Link[] = [{ href: "/clients", label: "Clients", icon: "clients", key: "C" }];
 
-  const settingsLink: Link = { href: "/settings", label: "Settings", icon: "settings" };
+  const settingsLink: Link = { href: "/settings", label: "Settings", icon: "settings", key: "S" };
 
   function isActive(href: string) {
     const path = page.url.pathname;
@@ -23,12 +28,18 @@
 {#snippet navLink(link: Link)}
   <a
     href={link.href}
+    title="{link.label} · G then {link.key}"
     class="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors {isActive(link.href)
       ? 'bg-zinc-800 text-zinc-100'
       : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'}"
   >
     <span class={isActive(link.href) ? "text-violet-400" : ""}><Icon name={link.icon} /></span>
     {link.label}
+    {#if link.badge}
+      <span class="ml-auto rounded-full bg-violet-500/15 px-1.5 text-[11px] font-medium text-violet-300 tabular-nums">
+        {link.badge}
+      </span>
+    {/if}
   </a>
 {/snippet}
 
@@ -36,6 +47,12 @@
   <div class="mb-4 flex items-center gap-2 px-2.5 py-1">
     <img src="/logo.png" alt="" class="size-6 shrink-0" />
     <span class="text-sm font-semibold text-zinc-100">MilestoneSpace</span>
+    {#if import.meta.env.DEV}
+      <span
+        class="rounded bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-300"
+        title="Development build: using tracker-dev.db">DEV</span
+      >
+    {/if}
   </div>
 
   <nav class="space-y-0.5">
@@ -51,7 +68,15 @@
     {/each}
   </nav>
 
-  <nav class="mt-auto">
+  <nav class="mt-auto space-y-0.5">
+    <button
+      type="button"
+      class="flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-zinc-500 transition-colors hover:bg-zinc-800/50 hover:text-zinc-200"
+      onclick={() => (helpState.open = true)}
+    >
+      Shortcuts
+      <kbd class="ml-auto rounded border border-zinc-700 bg-zinc-800 px-1.5 font-sans text-[11px] text-zinc-400">?</kbd>
+    </button>
     {@render navLink(settingsLink)}
   </nav>
 </aside>

@@ -123,6 +123,53 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE projects ADD COLUMN pinned_at TEXT;
   `,
+
+  // v5: the Today list. planned_for is the "YYYY-MM-DD" day a task was picked for, NULL when
+  // not planned. A new nullable column keeps all rows.
+  `
+  ALTER TABLE tasks ADD COLUMN planned_for TEXT;
+  CREATE INDEX IF NOT EXISTS idx_tasks_planned ON tasks(planned_for);
+  `,
+
+  // v6: the Inbox. Ideas and tasks captured with the global shortcut, sorted into projects later.
+  // Only a new table, so existing data is untouched.
+  `
+  CREATE TABLE IF NOT EXISTS inbox_items (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    text       TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  `,
+
+  // v7: a local folder per project, for the "Open folder" / "Open in VS Code" buttons.
+  // NULL when not set. A new nullable column keeps all rows.
+  `
+  ALTER TABLE projects ADD COLUMN local_path TEXT;
+  `,
+
+  // v8: Kanban board. status is To do / In progress / Done; is_done stays and is kept in sync
+  // (is_done = 1 exactly when status = 'done'), so everything that reads is_done still works.
+  // board_order is the position within a board column; NULL = after the ordered ones.
+  `
+  ALTER TABLE tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'todo'
+    CHECK (status IN ('todo', 'in_progress', 'done'));
+  UPDATE tasks SET status = 'done' WHERE is_done = 1;
+  ALTER TABLE tasks ADD COLUMN board_order INTEGER;
+  `,
+
+  // v9: project templates (Settings page). outline holds the milestones and tasks to create, as
+  // text: "# Milestone" lines and "- Task" lines (see templates.ts). Only a new table.
+  `
+  CREATE TABLE IF NOT EXISTS project_templates (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    type        TEXT NOT NULL DEFAULT 'personal' CHECK (type IN ('client', 'personal', 'study')),
+    color       TEXT NOT NULL DEFAULT '#8b5cf6',
+    description TEXT NOT NULL DEFAULT '',
+    outline     TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  `,
 ];
 
 /** The full SQL for one migration: one transaction, foreign keys off, bumps user_version. */

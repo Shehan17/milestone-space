@@ -1,6 +1,7 @@
 export type ProjectStatus = "active" | "on_hold" | "completed";
 export type ProjectType = "client" | "personal" | "study";
 export type Priority = "low" | "medium" | "high";
+export type TaskStatus = "todo" | "in_progress" | "done";
 
 export const PROJECT_STATUSES: ProjectStatus[] = ["active", "on_hold", "completed"];
 export const PROJECT_TYPES: ProjectType[] = ["client", "personal", "study"];
@@ -28,6 +29,14 @@ export const STATUS_LABELS: Record<ProjectStatus, string> = {
   active: "Active",
   on_hold: "On hold",
   completed: "Completed",
+};
+
+export const TASK_STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
+
+export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  todo: "To do",
+  in_progress: "In progress",
+  done: "Done",
 };
 
 export const PRIORITY_LABELS: Record<Priority, string> = {
@@ -61,6 +70,8 @@ export interface ProjectInput {
   deadline: string | null;
   /** Hex color, e.g. "#8b5cf6". */
   color: string;
+  /** The project's folder on this computer (absolute path); null when not set. */
+  local_path: string | null;
 }
 
 export interface Project extends ProjectInput {
@@ -94,15 +105,43 @@ export interface TaskInput {
   title: string;
   priority: Priority;
   due_date: string | null;
+  /** Saving also sets is_done (true exactly when status is "done"). */
+  status: TaskStatus;
 }
 
 export interface Task extends TaskInput {
   id: number;
   is_done: boolean;
+  /** Position within its board column; null = after the ordered ones. */
+  board_order: number | null;
+  /** The day ("YYYY-MM-DD") the task was picked for the Today list; null when not planned. */
+  planned_for: string | null;
   created_at: string;
   project_name: string;
   project_color: string;
   milestone_title: string | null;
+}
+
+/** An idea or task captured with the quick capture shortcut, waiting to be sorted. */
+export interface InboxItem {
+  id: number;
+  text: string;
+  created_at: string;
+}
+
+/** A starting point for new projects: its type, color and description, plus milestones and tasks. */
+export interface ProjectTemplateInput {
+  name: string;
+  type: ProjectType;
+  color: string;
+  description: string;
+  /** "# Milestone" and "- Task" lines, see templates.ts. */
+  outline: string;
+}
+
+export interface ProjectTemplate extends ProjectTemplateInput {
+  id: number;
+  created_at: string;
 }
 
 // ---------- Project info (notes, links, details) ----------

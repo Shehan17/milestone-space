@@ -7,6 +7,7 @@
   import PageHeader from "$lib/components/PageHeader.svelte";
   import { addClient, deleteClient, getClients, updateClient } from "$lib/db";
   import type { Client, ClientInput } from "$lib/types";
+  import { useShortcuts } from "$lib/shortcuts.svelte";
 
   let clients = $state<Client[]>([]);
 
@@ -47,6 +48,8 @@
     toDelete = null;
     await load();
   }
+
+  useShortcuts({ n: openNew });
 </script>
 
 <PageHeader title="Clients" subtitle="{clients.length} total">

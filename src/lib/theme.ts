@@ -5,6 +5,7 @@
  * The choice is a display preference, so it lives in localStorage, not the database.
  * app.html applies it before the first paint so the app never flashes the wrong theme.
  */
+import type { AccentId, Density, FontSize, Settings } from "./settings.svelte";
 
 export type ThemeId = "midnight" | "ocean" | "light" | "sand";
 
@@ -74,4 +75,51 @@ export function setTheme(id: ThemeId) {
   } catch {
     // Still applied for this session.
   }
+}
+
+// ---------- Accent color, spacing and text size (saved with the other settings) ----------
+
+type Shades = [string, string, string, string]; // violet-300, -400, -500, -600
+
+export interface Accent {
+  id: Exclude<AccentId, "theme">;
+  name: string;
+  /** Dark themes: 300 is the lightest (text on dark), 600 the button color. */
+  dark: Shades;
+  /** Light themes run the other way: 300 is the darkest (text on light). */
+  light: Shades;
+}
+
+export const ACCENTS: Accent[] = [
+  { id: "violet", name: "Violet", dark: ["#c4b8f5", "#a993f0", "#8f73e6", "#7458d0"], light: ["#5b3fb0", "#6849c4", "#7a5ad6", "#6849c4"] },
+  { id: "indigo", name: "Indigo", dark: ["#b4bcf7", "#959ff2", "#7582ea", "#5864d6"], light: ["#3a43a8", "#4651c2", "#5a65d6", "#4651c2"] },
+  { id: "blue", name: "Blue", dark: ["#a9cbf7", "#7fb0f0", "#5b95e6", "#3e78cc"], light: ["#1f4f99", "#2a63b8", "#3a78cf", "#2a63b8"] },
+  { id: "teal", name: "Teal", dark: ["#9edfd6", "#6cc9bd", "#46b0a3", "#2f8f84"], light: ["#15524c", "#1a655e", "#227a71", "#1a655e"] },
+  { id: "emerald", name: "Emerald", dark: ["#a6e3c4", "#74cfa2", "#4cb684", "#33966a"], light: ["#1d5e44", "#23744f", "#2b8a5f", "#23744f"] },
+  { id: "rose", name: "Rose", dark: ["#f5b8c6", "#ee90a6", "#e26c88", "#c94f6c"], light: ["#9c2a45", "#b53352", "#c94562", "#b53352"] },
+  { id: "amber", name: "Amber", dark: ["#f3d29b", "#ebbb6a", "#dea145", "#b97f22"], light: ["#7a4a0c", "#94590e", "#ad6a12", "#94590e"] },
+];
+
+const ACCENT_VARS = ["--color-violet-300", "--color-violet-400", "--color-violet-500", "--color-violet-600"];
+
+/** Tailwind sizes every padding, gap and width from --spacing (0.25rem by default). */
+const SPACING: Record<Density, string> = { compact: "0.25rem", comfortable: "0.2875rem" };
+
+/** The root font size; text and spacing are in rem, so this scales the whole interface. */
+const FONT_SIZES: Record<FontSize, string> = { small: "14px", default: "16px", large: "17px", larger: "18px" };
+
+/**
+ * Applies the accent, spacing and text size as inline styles on <html>, which win over the theme
+ * rules in app.css. "Theme default" removes the accent so the theme's own accent shows.
+ */
+export function applyAppearance(s: Pick<Settings, "accent" | "density" | "font_size">) {
+  const root = document.documentElement.style;
+  const accent = ACCENTS.find((a) => a.id === s.accent);
+  const mode = THEMES.find((t) => t.id === getTheme())?.mode ?? "dark";
+  ACCENT_VARS.forEach((name, i) => {
+    if (accent) root.setProperty(name, accent[mode][i]);
+    else root.removeProperty(name);
+  });
+  root.setProperty("--spacing", SPACING[s.density] ?? SPACING.compact);
+  root.fontSize = FONT_SIZES[s.font_size] ?? FONT_SIZES.default;
 }

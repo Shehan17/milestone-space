@@ -1,212 +1,295 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import DeadlineLabel from "$lib/components/DeadlineLabel.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import Icon from "$lib/components/Icon.svelte";
+  import Modal from "$lib/components/Modal.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
+  import PriorityBadge from "$lib/components/PriorityBadge.svelte";
   import ProjectDot from "$lib/components/ProjectDot.svelte";
-  import StatCard from "$lib/components/StatCard.svelte";
-  import Tabs from "$lib/components/Tabs.svelte";
-  import { getMilestones, getProjects, getTasks } from "$lib/db";
-  import { daysUntil } from "$lib/dates";
-  import { PROJECT_TYPES, TYPE_LABELS, type Milestone, type Project, type ProjectType, type Task } from "$lib/types";
+  import TaskForm, { emptyTask } from "$lib/components/TaskForm.svelte";
+  import TaskRow from "$lib/components/TaskRow.svelte";
+  import { addTask, deleteTask, getMilestones, getProjects, getTasks, setTaskDone, setTasksPlanned, updateTask } from "$lib/db";
+  import { daysUntil, formatDate, formatLongDate, todayString } from "$lib/dates";
+  import type { Milestone, Priority, Project, Task, TaskInput } from "$lib/types";
+  import { useShortcuts } from "$lib/shortcuts.svelte";
 
-  type DueItem = {
-    key: string;
-    kind: "Task" | "Milestone" | "Project";
-    title: string;
-    projectId: number;
-    context: string;
-    color: string;
-    date: string;
-  };
+  let tasks = $state<Task[]>([]);
+  let projects = $state<Project[]>([]);
+  let milestones = $state<Milestone[]>([]);
+  let today = $state(todayString());
 
-  let allProjects = $state<Project[]>([]);
-  let allTasks = $state<Task[]>([]);
-  let allMilestones = $state<Milestone[]>([]);
-  let typeFilter = $state<ProjectType | "all">("all");
+  async function load() {
+    today = todayString();
+    const [t, p, m] = await Promise.all([getTasks(), getProjects(), getMilestones()]);
+    tasks = t;
+    projects = p;
+    milestones = m;
+  }
 
-  onMount(async () => {
-    const [p, t, m] = await Promise.all([getProjects(), getTasks(), getMilestones()]);
-    allProjects = p;
-    allTasks = t;
-    allMilestones = m;
-  });
+  onMount(load);
 
-  const typeTabs = [
-    { value: "all" as const, label: "All" },
-    ...PROJECT_TYPES.map((t) => ({ value: t, label: TYPE_LABELS[t] })),
-  ];
+  // The app may stay open overnight: start the new day's list when the window is focused again.
+  function onfocus() {
+    if (todayString() !== today) load();
+  }
 
-  // Pinned projects are quick links, so they ignore the type filter. Oldest pin first.
-  let pinned = $derived(
-    allProjects.filter((p) => p.pinned_at).sort((a, b) => a.pinned_at!.localeCompare(b.pinned_at!) || a.id - b.id)
+  const PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
+
+  /** Higher priority first, then earlier due date (no date last). */
+  function byUrgency(a: Task, b: Task) {
+    return (
+      PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] ||
+      (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999") ||
+      a.id - b.id
+    );
+  }
+
+  // Today's list: open tasks first, finished ones stay at the bottom until tomorrow.
+  let todayTasks = $derived(
+    tasks.filter((t) => t.planned_for === today).sort((a, b) => Number(a.is_done) - Number(b.is_done) || byUrgency(a, b))
+  );
+  let doneCount = $derived(todayTasks.filter((t) => t.is_done).length);
+
+  // Planned for an earlier day but not finished. Offered again rather than moved over automatically.
+  let leftover = $derived(
+    tasks
+      .filter((t) => !t.is_done && t.planned_for !== null && t.planned_for < today)
+      .sort((a, b) => b.planned_for!.localeCompare(a.planned_for!) || byUrgency(a, b))
   );
 
-  // Everything below works on the projects of the selected type.
-  let projects = $derived(typeFilter === "all" ? allProjects : allProjects.filter((p) => p.type === typeFilter));
-  let projectIds = $derived(new Set(projects.map((p) => p.id)));
-  let tasks = $derived(allTasks.filter((t) => projectIds.has(t.project_id)));
-  let milestones = $derived(allMilestones.filter((m) => projectIds.has(m.project_id)));
+  function plannedLabel(day: string) {
+    const days = daysUntil(day);
+    return days === -1 ? "yesterday" : formatDate(day);
+  }
 
-  // Work on completed projects no longer counts as due.
+  async function toggle(t: Task) {
+    await setTaskDone(t.id, !t.is_done);
+    await load();
+  }
+
+  async function plan(ids: number[], day: string | null) {
+    await setTasksPlanned(ids, day);
+    await load();
+  }
+
+  async function remove(t: Task) {
+    await deleteTask(t.id);
+    await load();
+  }
+
+  // ----- Picker: choose today's tasks from every project -----
+  let pickerOpen = $state(false);
+  let search = $state("");
+  const selected = new SvelteSet<number>();
+
   let completedIds = $derived(new Set(projects.filter((p) => p.status === "completed").map((p) => p.id)));
 
-  let dueItems = $derived(
-    [
-      ...projects
-        .filter((p) => p.status !== "completed" && p.deadline)
-        .map((p): DueItem => ({
-          key: `p${p.id}`,
-          kind: "Project",
-          title: p.name,
-          projectId: p.id,
-          context: p.client_name ?? TYPE_LABELS[p.type],
-          color: p.color,
-          date: p.deadline!,
-        })),
-      ...milestones
-        .filter((m) => !m.is_done && m.due_date && !completedIds.has(m.project_id))
-        .map((m): DueItem => ({
-          key: `m${m.id}`,
-          kind: "Milestone",
-          title: m.title,
-          projectId: m.project_id,
-          context: m.project_name,
-          color: m.project_color,
-          date: m.due_date!,
-        })),
-      ...tasks
-        .filter((t) => !t.is_done && t.due_date && !completedIds.has(t.project_id))
-        .map((t): DueItem => ({
-          key: `t${t.id}`,
-          kind: "Task",
-          title: t.title,
-          projectId: t.project_id,
-          context: t.project_name,
-          color: t.project_color,
-          date: t.due_date!,
-        })),
-    ].sort((a, b) => a.date.localeCompare(b.date))
+  // Open tasks not already on today's list, from projects that aren't completed.
+  let candidates = $derived(
+    tasks.filter((t) => !t.is_done && t.planned_for !== today && !completedIds.has(t.project_id))
+  );
+  let matching = $derived.by(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return candidates;
+    return candidates.filter((t) => t.title.toLowerCase().includes(q) || t.project_name.toLowerCase().includes(q));
+  });
+
+  // Overdue or due within 3 days goes first; everything else is grouped by project.
+  const isDueSoon = (t: Task) => t.due_date !== null && daysUntil(t.due_date) <= 3;
+  let dueSoon = $derived(matching.filter(isDueSoon).sort((a, b) => a.due_date!.localeCompare(b.due_date!)));
+  let byProject = $derived(
+    projects
+      .map((p) => ({ project: p, tasks: matching.filter((t) => t.project_id === p.id && !isDueSoon(t)).sort(byUrgency) }))
+      .filter((g) => g.tasks.length > 0)
   );
 
-  let overdue = $derived(dueItems.filter((i) => daysUntil(i.date) < 0));
-  let thisWeek = $derived(
-    dueItems.filter((i) => {
-      const days = daysUntil(i.date);
-      return days >= 0 && days <= 7;
-    })
-  );
-  let upcomingMilestones = $derived(
-    milestones
-      .filter((m) => !m.is_done && !completedIds.has(m.project_id) && (!m.due_date || daysUntil(m.due_date) >= 0))
-      .slice(0, 8)
-  );
+  function openPicker() {
+    search = "";
+    selected.clear();
+    pickerOpen = true;
+  }
 
-  let activeProjects = $derived(projects.filter((p) => p.status === "active").length);
-  let openTasks = $derived(tasks.filter((t) => !t.is_done && !completedIds.has(t.project_id)).length);
+  function togglePick(id: number) {
+    if (selected.has(id)) selected.delete(id);
+    else selected.add(id);
+  }
+
+  async function savePicker() {
+    await plan([...selected], today);
+    pickerOpen = false;
+  }
+
+  // ----- Task form: new tasks go straight onto today's list -----
+  let formOpen = $state(false);
+  let editingId = $state<number | null>(null);
+  let draft = $state<TaskInput>(emptyTask(0));
+
+  let openProjects = $derived(projects.filter((p) => p.status !== "completed"));
+
+  function openNew() {
+    editingId = null;
+    draft = emptyTask(openProjects[0]?.id ?? 0);
+    formOpen = true;
+  }
+
+  function openEdit(t: Task) {
+    editingId = t.id;
+    draft = { project_id: t.project_id, milestone_id: t.milestone_id, title: t.title, priority: t.priority, due_date: t.due_date, status: t.status };
+    formOpen = true;
+  }
+
+  async function save() {
+    if (!draft.title.trim() || !draft.project_id) return;
+    if (editingId === null) await addTask(draft, today);
+    else await updateTask(editingId, draft);
+    formOpen = false;
+    await load();
+  }
+
+  useShortcuts({ n: () => openProjects.length > 0 && openNew(), p: openPicker });
 </script>
 
-{#snippet dueRow(item: DueItem)}
-  <a href="/projects/{item.projectId}" class="flex items-center gap-3 px-4 py-2 hover:bg-zinc-800/30">
-    <span class="w-16 shrink-0 text-[11px] font-medium tracking-wide text-zinc-500 uppercase">{item.kind}</span>
+<svelte:window {onfocus} />
+
+{#snippet pickRow(task: Task, showProject: boolean)}
+  <label class="flex cursor-pointer items-center gap-3 px-3 py-1.5 hover:bg-zinc-800/40">
+    <input type="checkbox" class="checkbox" checked={selected.has(task.id)} onchange={() => togglePick(task.id)} />
     <div class="min-w-0 flex-1">
-      <p class="truncate text-sm text-zinc-200">{item.title}</p>
-      <p class="flex items-center gap-1.5 truncate text-xs text-zinc-500">
-        <ProjectDot color={item.color} size={7} />{item.context}
-      </p>
+      <p class="truncate text-sm text-zinc-200">{task.title}</p>
+      {#if showProject}
+        <p class="flex items-center gap-1.5 truncate text-xs text-zinc-500">
+          <ProjectDot color={task.project_color} size={7} />{task.project_name}
+        </p>
+      {/if}
     </div>
-    <DeadlineLabel date={item.date} />
-  </a>
+    <PriorityBadge priority={task.priority} />
+    {#if task.due_date}
+      <span class="w-24 shrink-0 text-right"><DeadlineLabel date={task.due_date} /></span>
+    {/if}
+  </label>
 {/snippet}
 
-<PageHeader title="Dashboard">
+<PageHeader title="Today" subtitle={formatLongDate(today)}>
   {#snippet actions()}
-    <Tabs options={typeTabs} bind:value={typeFilter} />
+    <button type="button" class="btn btn-ghost" onclick={openNew} disabled={openProjects.length === 0}>
+      <Icon name="plus" size={14} />New task
+    </button>
+    <button type="button" class="btn btn-primary" onclick={openPicker}>
+      <Icon name="sun" size={14} />Pick tasks
+    </button>
   {/snippet}
 </PageHeader>
 
-<div class="space-y-6 px-8 py-6">
-  <section>
-    <h2 class="mb-2 flex items-center gap-1.5 text-xs font-semibold text-zinc-300">
-      <span class="text-violet-400"><Icon name="pin" size={12} /></span>Pinned
-    </h2>
-    {#if pinned.length > 0}
-      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {#each pinned as p (p.id)}
-          {@const done = p.task_count - p.open_task_count}
-          <a href="/projects/{p.id}" class="card block min-w-0 px-4 py-3 transition-colors hover:border-zinc-700 hover:bg-zinc-800/40">
-            <div class="flex items-center gap-2">
-              <ProjectDot color={p.color} />
-              <p class="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">{p.name}</p>
-              <DeadlineLabel date={p.deadline} done={p.status === "completed"} />
-            </div>
-            <p class="mt-0.5 truncate pl-4 text-xs text-zinc-500">{p.client_name ?? TYPE_LABELS[p.type]}</p>
-            <div class="mt-3 flex items-center gap-2">
-              <div class="h-1 flex-1 overflow-hidden rounded-full bg-zinc-800">
-                <div
-                  class="h-full"
-                  style="width: {p.task_count ? (done / p.task_count) * 100 : 0}%; background-color: {p.color}"
-                ></div>
-              </div>
-              <span class="text-xs text-zinc-500 tabular-nums">{done}/{p.task_count}</span>
-            </div>
-          </a>
+<div class="max-w-4xl space-y-6 px-8 py-6">
+  <section class="card">
+    {#if todayTasks.length > 0}
+      <div class="flex items-center gap-3 border-b border-zinc-800 px-4 py-2.5">
+        <h2 class="text-xs font-semibold text-zinc-300">Your list</h2>
+        <div class="h-1 max-w-48 flex-1 overflow-hidden rounded-full bg-zinc-800">
+          <div class="h-full bg-violet-500" style="width: {(doneCount / todayTasks.length) * 100}%"></div>
+        </div>
+        <span class="text-xs text-zinc-500 tabular-nums">{doneCount} of {todayTasks.length} done</span>
+      </div>
+      <div class="divide-y divide-zinc-800/70">
+        {#each todayTasks as task (task.id)}
+          <TaskRow
+            {task}
+            showProject
+            ontoggle={toggle}
+            onedit={openEdit}
+            ondelete={remove}
+            onplan={(t) => plan([t.id], null)}
+          />
         {/each}
       </div>
     {:else}
-      <p class="card px-4 py-3 text-xs text-zinc-500">
-        No pinned projects. Use the pin button on a project to keep it here for quick access.
-      </p>
+      <div class="px-4 py-10 text-center">
+        <p class="text-sm text-zinc-300">Nothing planned for today yet.</p>
+        <p class="mt-1 text-xs text-zinc-500">Pick the tasks you'll work on today from all your projects.</p>
+        <button type="button" class="btn btn-primary mt-4" onclick={openPicker}>
+          <Icon name="sun" size={14} />Pick tasks
+        </button>
+      </div>
     {/if}
   </section>
 
-  <div class="grid grid-cols-3 gap-3">
-    <StatCard label="Active projects" value={activeProjects} />
-    <StatCard label="Open tasks" value={openTasks} />
-    <StatCard label="Overdue" value={overdue.length} alert />
-  </div>
-
-  <div class="grid gap-6 lg:grid-cols-2">
-    <div class="space-y-6">
-      <section class="card">
-        <h2 class="border-b border-zinc-800 px-4 py-2.5 text-xs font-semibold text-red-400">
-          Overdue <span class="ml-1 text-zinc-500">{overdue.length}</span>
+  {#if leftover.length > 0}
+    <section class="card">
+      <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
+        <h2 class="text-xs font-semibold text-zinc-400">
+          Unfinished from earlier days <span class="ml-1 text-zinc-500">{leftover.length}</span>
         </h2>
-        {#each overdue as item (item.key)}
-          {@render dueRow(item)}
-        {:else}
-          <EmptyState message="Nothing overdue." />
-        {/each}
-      </section>
-
-      <section class="card">
-        <h2 class="border-b border-zinc-800 px-4 py-2.5 text-xs font-semibold text-zinc-300">
-          Due this week <span class="ml-1 text-zinc-500">{thisWeek.length}</span>
-        </h2>
-        {#each thisWeek as item (item.key)}
-          {@render dueRow(item)}
-        {:else}
-          <EmptyState message="Nothing due in the next 7 days." />
-        {/each}
-      </section>
-    </div>
-
-    <section class="card self-start">
-      <h2 class="border-b border-zinc-800 px-4 py-2.5 text-xs font-semibold text-zinc-300">Upcoming milestones</h2>
-      {#each upcomingMilestones as m (m.id)}
-        <a href="/projects/{m.project_id}" class="flex items-center gap-3 px-4 py-2 hover:bg-zinc-800/30">
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-sm text-zinc-200">{m.title}</p>
-            <p class="flex items-center gap-1.5 truncate text-xs text-zinc-500">
-              <ProjectDot color={m.project_color} size={7} />{m.project_name}
-            </p>
+        <button
+          type="button"
+          class="btn btn-ghost px-2 py-1 text-xs"
+          onclick={() => plan(leftover.map((t) => t.id), today)}
+        >
+          <Icon name="sun" size={12} />Add all to today
+        </button>
+      </div>
+      <div class="divide-y divide-zinc-800/70">
+        {#each leftover as task (task.id)}
+          <div class="group flex items-center gap-3 px-4 py-2 hover:bg-zinc-800/30">
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm text-zinc-300">{task.title}</p>
+              <p class="flex items-center gap-1.5 truncate text-xs text-zinc-500">
+                <a href="/projects/{task.project_id}" class="inline-flex items-center gap-1.5 hover:text-zinc-300">
+                  <ProjectDot color={task.project_color} size={7} />{task.project_name}
+                </a>
+                <span>· planned {plannedLabel(task.planned_for!)}</span>
+              </p>
+            </div>
+            <div class="w-28 shrink-0 text-right"><DeadlineLabel date={task.due_date} /></div>
+            <button type="button" class="btn btn-ghost px-2 py-1 text-xs" onclick={() => plan([task.id], today)}>
+              <Icon name="sun" size={12} />Today
+            </button>
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Take {task.title} off the plan"
+              title="Take off the plan (the task stays in its project)"
+              onclick={() => plan([task.id], null)}
+            >
+              <Icon name="x" size={14} />
+            </button>
           </div>
-          <DeadlineLabel date={m.due_date} />
-        </a>
-      {:else}
-        <EmptyState message="No upcoming milestones." />
-      {/each}
+        {/each}
+      </div>
     </section>
-  </div>
+  {/if}
 </div>
+
+<Modal
+  open={pickerOpen}
+  title="Pick today's tasks"
+  submitLabel={selected.size > 0 ? `Add ${selected.size} to Today` : "Done"}
+  onclose={() => (pickerOpen = false)}
+  onsubmit={savePicker}
+>
+  <input class="input" placeholder="Search tasks or projects" bind:value={search} aria-label="Search tasks" />
+  <div class="-mx-5 max-h-[50vh] overflow-y-auto border-y border-zinc-800">
+    {#if dueSoon.length > 0}
+      <p class="px-3 pt-3 pb-1 text-[11px] font-medium tracking-wide text-orange-400 uppercase">Due soon</p>
+      {#each dueSoon as task (task.id)}
+        {@render pickRow(task, true)}
+      {/each}
+    {/if}
+    {#each byProject as group (group.project.id)}
+      <p class="flex items-center gap-1.5 px-3 pt-3 pb-1 text-[11px] font-medium tracking-wide text-zinc-500 uppercase">
+        <ProjectDot color={group.project.color} size={7} />{group.project.name}
+      </p>
+      {#each group.tasks as task (task.id)}
+        {@render pickRow(task, false)}
+      {/each}
+    {/each}
+    {#if matching.length === 0}
+      <EmptyState message={candidates.length === 0 ? "No open tasks left to pick." : "No tasks match your search."} />
+    {/if}
+  </div>
+</Modal>
+
+<Modal open={formOpen} title={editingId === null ? "New task for today" : "Edit task"} onclose={() => (formOpen = false)} onsubmit={save}>
+  <TaskForm bind:values={draft} projects={editingId === null ? openProjects : projects} {milestones} />
+</Modal>

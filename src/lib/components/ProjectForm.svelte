@@ -1,21 +1,26 @@
 <script module lang="ts">
+  import { settings } from "$lib/settings.svelte";
   import { PROJECT_COLORS, type ProjectInput } from "$lib/types";
 
+  /** A blank project with the default type from Settings. */
   export function emptyProject(): ProjectInput {
     return {
-      type: "personal",
+      type: settings.default_project_type,
       client_id: null,
       name: "",
       description: "",
       status: "active",
       deadline: null,
       color: PROJECT_COLORS[0],
+      local_path: null,
     };
   }
 </script>
 
 <script lang="ts">
   import { PROJECT_STATUSES, PROJECT_TYPES, STATUS_LABELS, TYPE_LABELS, type ProjectType } from "$lib/types";
+  import { open } from "@tauri-apps/plugin-dialog";
+  import ColorPicker from "./ColorPicker.svelte";
   import Field from "./Field.svelte";
   import Tabs from "./Tabs.svelte";
 
@@ -26,11 +31,14 @@
 
   const typeOptions = PROJECT_TYPES.map((t) => ({ value: t, label: TYPE_LABELS[t] }));
 
-  let isCustomColor = $derived(!PROJECT_COLORS.includes(values.color));
-
   function onTypeChange(type: ProjectType) {
     // Pick a client automatically so a client project is never saved without one.
     if (type === "client" && values.client_id === null) values.client_id = clients[0]?.id ?? null;
+  }
+
+  async function browseFolder() {
+    const folder = await open({ directory: true, defaultPath: values.local_path || undefined, title: "Project folder" });
+    if (typeof folder === "string") values.local_path = folder;
   }
 </script>
 
@@ -72,33 +80,14 @@
   </Field>
 </div>
 
-<div>
-  <span class="mb-1.5 block text-xs font-medium text-zinc-400">Color</span>
-  <div class="flex items-center gap-2">
-    {#each PROJECT_COLORS as color (color)}
-      <button
-        type="button"
-        class="size-6 cursor-pointer rounded-full ring-offset-2 ring-offset-zinc-900 {values.color === color
-          ? 'ring-2 ring-zinc-200'
-          : 'hover:ring-2 hover:ring-zinc-600'}"
-        style="background-color: {color}"
-        aria-label="Color {color}"
-        aria-pressed={values.color === color}
-        onclick={() => (values.color = color)}
-      ></button>
-    {/each}
-    <label
-      class="relative size-6 cursor-pointer overflow-hidden rounded-full border border-dashed border-zinc-600 ring-offset-2 ring-offset-zinc-900 {isCustomColor
-        ? 'ring-2 ring-zinc-200'
-        : ''}"
-      style={isCustomColor ? `background-color: ${values.color}` : undefined}
-      title="Custom color"
-    >
-      <input type="color" class="absolute inset-0 cursor-pointer opacity-0" bind:value={values.color} />
-      {#if !isCustomColor}<span class="grid size-full place-items-center text-xs text-zinc-500">+</span>{/if}
-    </label>
+<ColorPicker bind:value={values.color} />
+
+<Field label="Local folder">
+  <div class="flex gap-2">
+    <input class="input" bind:value={values.local_path} placeholder="C:\Users\you\Projects\my-project" />
+    <button type="button" class="btn btn-ghost shrink-0 border border-zinc-800" onclick={browseFolder}>Browse…</button>
   </div>
-</div>
+</Field>
 
 <Field label="Description">
   <textarea class="input" rows="3" bind:value={values.description}></textarea>

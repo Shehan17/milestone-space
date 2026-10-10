@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { modalOpened } from "$lib/shortcuts.svelte";
 
   interface Props {
     open: boolean;
@@ -7,7 +8,8 @@
     submitLabel?: string;
     danger?: boolean;
     onclose: () => void;
-    onsubmit: () => void | Promise<void>;
+    /** Omit for a read-only dialog: the footer then shows only a Close button. */
+    onsubmit?: () => void | Promise<void>;
     children: Snippet;
   }
 
@@ -21,11 +23,23 @@
     if (open && form) form.querySelector<HTMLElement>("input, textarea, select")?.focus();
   });
 
+  // While open: turn page shortcuts off, and give focus back to where it was (e.g. a task row) on close.
+  $effect(() => {
+    if (!open) return;
+    const previous = document.activeElement;
+    const closed = modalOpened();
+    return () => {
+      closed();
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
+    };
+  });
+
   // Ignore extra submits (double-click, double Enter) while a save is running, so nothing is added twice.
   let submitting = $state(false);
 
   async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
+    if (!onsubmit) return onclose();
     if (submitting) return;
     submitting = true;
     try {
@@ -45,7 +59,13 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (open && event.key === "Escape") onclose();
+    if (!open) return;
+    if (event.key === "Escape") onclose();
+    // Ctrl+Enter saves from anywhere in the form, including text areas where Enter adds a line.
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && onsubmit) {
+      event.preventDefault();
+      form?.requestSubmit();
+    }
   }
 </script>
 
@@ -71,10 +91,14 @@
         {@render children()}
       </div>
       <div class="flex justify-end gap-2 border-t border-zinc-800 px-5 py-3">
-        <button type="button" class="btn btn-ghost" onclick={onclose}>Cancel</button>
-        <button type="submit" class="btn {danger ? 'btn-danger' : 'btn-primary'}" disabled={submitting}>
-          {submitLabel}
-        </button>
+        {#if onsubmit}
+          <button type="button" class="btn btn-ghost" onclick={onclose}>Cancel</button>
+          <button type="submit" class="btn {danger ? 'btn-danger' : 'btn-primary'}" disabled={submitting}>
+            {submitLabel}
+          </button>
+        {:else}
+          <button type="button" class="btn btn-ghost" onclick={onclose}>Close</button>
+        {/if}
       </div>
     </form>
   </div>

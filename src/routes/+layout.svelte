@@ -1,10 +1,19 @@
 <script lang="ts">
   import "../app.css";
   import { onMount } from "svelte";
+  import { page } from "$app/state";
+  import ShortcutsHelp from "$lib/components/ShortcutsHelp.svelte";
   import Sidebar from "$lib/components/Sidebar.svelte";
+  import { runAutoBackup } from "$lib/backup.svelte";
   import { initDb } from "$lib/db";
+  import { onInboxChanged, refreshInboxCount } from "$lib/inbox.svelte";
+  import { checkNotifications } from "$lib/notifications";
+  import { handleGlobalKey } from "$lib/shortcuts.svelte";
 
   let { children } = $props();
+
+  // The quick capture window (/quick) is just the page: no sidebar, shortcuts or error popup.
+  const bare = page.url.pathname.startsWith("/quick");
 
   let error = $state("");
 
@@ -14,23 +23,50 @@
       error = String(event.reason);
     };
     window.addEventListener("unhandledrejection", showError);
-    initDb().catch((e) => (error = String(e)));
-    return () => window.removeEventListener("unhandledrejection", showError);
+    initDb()
+      .then(() => (bare ? undefined : refreshInboxCount()))
+      .catch((e) => (error = String(e)));
+    // Keep the sidebar's Inbox count right when the quick capture window saves something.
+    const stopListening = bare ? () => {} : onInboxChanged(refreshInboxCount);
+
+    // Reminders and automatic backups run in the main window, which stays alive in the tray.
+    // A failed check is logged rather than shown, and tried again on the next round.
+    const timers: ReturnType<typeof setInterval>[] = [];
+    if (!bare) {
+      const notifications = () => checkNotifications().catch((e) => console.error("Notifications:", e));
+      const backup = () => runAutoBackup().catch((e) => console.error("Auto backup:", e));
+      timers.push(setTimeout(notifications, 5_000), setInterval(notifications, 60_000));
+      timers.push(setTimeout(backup, 30_000), setInterval(backup, 15 * 60_000));
+    }
+
+    return () => {
+      window.removeEventListener("unhandledrejection", showError);
+      stopListening();
+      timers.forEach(clearInterval);
+    };
   });
 </script>
 
-<div class="flex h-screen overflow-hidden">
-  <Sidebar />
-  <main class="min-w-0 flex-1 overflow-y-auto">
-    {@render children()}
-  </main>
-</div>
+<svelte:window onkeydown={bare ? undefined : handleGlobalKey} />
 
-{#if error}
-  <div
-    class="fixed right-4 bottom-4 z-50 flex max-w-md items-start gap-3 rounded-lg border border-red-500/30 bg-red-950/90 px-4 py-3 text-sm text-red-200 shadow-lg"
-  >
-    <p class="flex-1 break-words">{error}</p>
-    <button type="button" class="icon-btn text-red-300" onclick={() => (error = "")}>Dismiss</button>
+{#if bare}
+  {@render children()}
+{:else}
+  <div class="flex h-screen overflow-hidden">
+    <Sidebar />
+    <main class="min-w-0 flex-1 overflow-y-auto">
+      {@render children()}
+    </main>
   </div>
+
+  <ShortcutsHelp />
+
+  {#if error}
+    <div
+      class="fixed right-4 bottom-4 z-50 flex max-w-md items-start gap-3 rounded-lg border border-red-500/30 bg-red-950/90 px-4 py-3 text-sm text-red-200 shadow-lg"
+    >
+      <p class="flex-1 break-words">{error}</p>
+      <button type="button" class="icon-btn text-red-300" onclick={() => (error = "")}>Dismiss</button>
+    </div>
+  {/if}
 {/if}

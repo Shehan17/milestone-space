@@ -1,0 +1,188 @@
+<!--
+  Kanban board: To do / In progress / Done columns with drag and drop (native HTML5 drag events;
+  tauri.conf.json sets dragDropEnabled: false so WebView2 delivers them).
+  Keyboard: focus a card, ←/→ moves it to the previous/next column, Enter edits it.
+-->
+<script lang="ts">
+  import { tick } from "svelte";
+  import { todayString } from "$lib/dates";
+  import { plainKey } from "$lib/shortcuts.svelte";
+  import { TASK_STATUSES, TASK_STATUS_LABELS, type Task, type TaskStatus } from "$lib/types";
+  import DeadlineLabel from "./DeadlineLabel.svelte";
+  import Icon from "./Icon.svelte";
+  import PriorityBadge from "./PriorityBadge.svelte";
+
+  interface Props {
+    tasks: Task[];
+    /** The task dropped into `status`; orderedIds is that column top to bottom, including it. */
+    onmove: (task: Task, status: TaskStatus, orderedIds: number[]) => void | Promise<void>;
+    onedit: (task: Task) => void;
+    onadd: (status: TaskStatus) => void;
+  }
+
+  let { tasks, onmove, onedit, onadd }: Props = $props();
+
+  const dotClass: Record<TaskStatus, string> = {
+    todo: "bg-zinc-500",
+    in_progress: "bg-violet-400",
+    done: "bg-emerald-400",
+  };
+
+  /** Board order first (manual), then the oldest first. */
+  function byBoardOrder(a: Task, b: Task) {
+    return (a.board_order ?? Number.MAX_SAFE_INTEGER) - (b.board_order ?? Number.MAX_SAFE_INTEGER) || a.id - b.id;
+  }
+
+  let columns = $derived(
+    TASK_STATUSES.map((status) => ({ status, tasks: tasks.filter((t) => t.status === status).sort(byBoardOrder) }))
+  );
+
+  const today = todayString();
+
+  // ----- Drag and drop -----
+  let dragging = $state<Task | null>(null);
+  /** Where the card would land: column and index among that column's other cards. */
+  let dropTarget = $state<{ status: TaskStatus; index: number } | null>(null);
+
+  function ondragstart(event: DragEvent, task: Task) {
+    dragging = task;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", String(task.id));
+    }
+  }
+
+  function ondragend() {
+    dragging = null;
+    dropTarget = null;
+  }
+
+  function ondragover(event: DragEvent, status: TaskStatus) {
+    if (!dragging) return;
+    event.preventDefault(); // allows the drop
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    // Insert before the first card whose middle is below the pointer.
+    const list = event.currentTarget as HTMLElement;
+    const cards = [...list.querySelectorAll<HTMLElement>("[data-card-id]")].filter(
+      (card) => card.dataset.cardId !== String(dragging?.id)
+    );
+    const index = cards.findIndex((card) => {
+      const rect = card.getBoundingClientRect();
+      return event.clientY < rect.top + rect.height / 2;
+    });
+    const next = { status, index: index === -1 ? cards.length : index };
+    if (dropTarget?.status !== next.status || dropTarget.index !== next.index) dropTarget = next;
+  }
+
+  function ondragleave(event: DragEvent) {
+    // Only when leaving the column itself, not when moving between its cards.
+    const column = event.currentTarget as HTMLElement;
+    if (!column.contains(event.relatedTarget as Node | null)) dropTarget = null;
+  }
+
+  async function ondrop(event: DragEvent) {
+    event.preventDefault();
+    const task = dragging;
+    const target = dropTarget;
+    dragging = null;
+    dropTarget = null;
+    if (task && target) await move(task, target.status, target.index);
+  }
+
+  async function move(task: Task, status: TaskStatus, index: number) {
+    const others = columns.find((c) => c.status === status)!.tasks.filter((t) => t.id !== task.id);
+    // Dropped back where it was: nothing to save.
+    const currentIndex = others.filter((t) => byBoardOrder(t, task) < 0).length;
+    if (task.status === status && currentIndex === index) return;
+    const ids = others.map((t) => t.id);
+    ids.splice(index, 0, task.id);
+    await onmove(task, status, ids);
+  }
+
+  // ----- Keyboard -----
+  async function oncardkeydown(event: KeyboardEvent, task: Task) {
+    const key = plainKey(event);
+    if (key !== "ArrowLeft" && key !== "ArrowRight") return;
+    const next = TASK_STATUSES[TASK_STATUSES.indexOf(task.status) + (key === "ArrowLeft" ? -1 : 1)];
+    if (!next) return;
+    event.preventDefault();
+    const target = columns.find((c) => c.status === next)!;
+    await move(task, next, target.tasks.length);
+    await tick();
+    document.querySelector<HTMLElement>(`[data-card-id="${task.id}"]`)?.focus();
+  }
+</script>
+
+<div class="grid gap-4 md:grid-cols-3">
+  {#each columns as column (column.status)}
+    {@const isTarget = dropTarget?.status === column.status}
+    {@const others = column.tasks.filter((t) => t.id !== dragging?.id)}
+    <section
+      class="flex min-h-40 flex-col rounded-lg border bg-zinc-900/40 transition-colors {isTarget
+        ? 'border-violet-500/50 bg-violet-500/5'
+        : 'border-zinc-800'}"
+      aria-label={TASK_STATUS_LABELS[column.status]}
+      ondragover={(e) => ondragover(e, column.status)}
+      {ondragleave}
+      {ondrop}
+    >
+      <header class="flex items-center gap-2 px-3 py-2">
+        <span class="size-2 rounded-full {dotClass[column.status]}"></span>
+        <h3 class="text-xs font-semibold text-zinc-300">{TASK_STATUS_LABELS[column.status]}</h3>
+        <span class="text-xs text-zinc-500 tabular-nums">{column.tasks.length}</span>
+        <button
+          type="button"
+          class="icon-btn ml-auto"
+          aria-label="Add task to {TASK_STATUS_LABELS[column.status]}"
+          title="Add task"
+          onclick={() => onadd(column.status)}
+        >
+          <Icon name="plus" size={14} />
+        </button>
+      </header>
+
+      <div class="flex flex-1 flex-col gap-2 px-2 pb-2">
+        {#each column.tasks as task (task.id)}
+          {#if isTarget && others[dropTarget!.index]?.id === task.id}
+            <div class="h-0.5 rounded-full bg-violet-500"></div>
+          {/if}
+          <button
+            type="button"
+            draggable="true"
+            data-card-id={task.id}
+            class="cursor-grab rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-left transition-colors hover:border-zinc-700 focus-visible:border-violet-500 focus-visible:outline-none active:cursor-grabbing {dragging?.id ===
+            task.id
+              ? 'opacity-40'
+              : ''}"
+            ondragstart={(e) => ondragstart(e, task)}
+            {ondragend}
+            onclick={() => onedit(task)}
+            onkeydown={(e) => oncardkeydown(e, task)}
+          >
+            <p class="text-sm break-words {task.status === 'done' ? 'text-zinc-500 line-through' : 'text-zinc-200'}">
+              {task.title}
+            </p>
+            <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <PriorityBadge priority={task.priority} />
+              {#if task.due_date}<DeadlineLabel date={task.due_date} done={task.status === "done"} />{/if}
+              {#if task.milestone_title}
+                <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-zinc-500">
+                  <Icon name="flag" size={11} />{task.milestone_title}
+                </span>
+              {/if}
+              {#if task.planned_for === today}
+                <span class="text-violet-400" title="On today's list"><Icon name="sun" size={12} /></span>
+              {/if}
+            </div>
+          </button>
+        {/each}
+        {#if isTarget && dropTarget!.index >= others.length}
+          <div class="h-0.5 rounded-full bg-violet-500"></div>
+        {/if}
+        {#if column.tasks.length === 0 && !isTarget}
+          <p class="px-2 py-6 text-center text-xs text-zinc-600">Drop tasks here</p>
+        {/if}
+      </div>
+    </section>
+  {/each}
+</div>

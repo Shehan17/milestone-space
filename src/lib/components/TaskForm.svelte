@@ -1,5 +1,15 @@
+<script module lang="ts">
+  import { settings } from "$lib/settings.svelte";
+  import type { TaskInput as NewTask } from "$lib/types";
+
+  /** A blank task in a project, with the default priority from Settings. */
+  export function emptyTask(project_id: number, values: Partial<NewTask> = {}): NewTask {
+    return { project_id, milestone_id: null, title: "", priority: settings.default_priority, due_date: null, status: "todo", ...values };
+  }
+</script>
+
 <script lang="ts">
-  import { PRIORITIES, PRIORITY_LABELS, type Milestone, type TaskInput } from "$lib/types";
+  import { PRIORITIES, PRIORITY_LABELS, TASK_STATUSES, TASK_STATUS_LABELS, type Milestone, type TaskInput } from "$lib/types";
   import Field from "./Field.svelte";
 
   interface Props {
@@ -38,7 +48,14 @@
   </select>
 </Field>
 
-<div class="grid grid-cols-2 gap-3">
+<div class="grid grid-cols-[1fr_1fr_8.5rem] gap-3">
+  <Field label="Status">
+    <select class="input" bind:value={values.status}>
+      {#each TASK_STATUSES as status (status)}
+        <option value={status}>{TASK_STATUS_LABELS[status]}</option>
+      {/each}
+    </select>
+  </Field>
   <Field label="Priority">
     <select class="input" bind:value={values.priority}>
       {#each PRIORITIES as priority (priority)}
