@@ -77,6 +77,39 @@ function toBool<T extends { is_done: boolean }>(rows: Raw<T>[]): T[] {
 /** Empty date inputs give "" — store those as NULL. */
 const dateOrNull = (value: string | null) => (value ? value : null);
 
+// ---------- Undo for deletes ----------
+
+/** Tables whose rows can be deleted with Undo: nothing else points at them. */
+type UndoableTable = "tasks" | "inbox_items" | "project_links" | "project_details" | "project_templates";
+
+/** Puts a deleted row back. Returned by the delete functions below, for the Undo button. */
+export type Undo = () => Promise<void>;
+
+/**
+ * Deletes one row and returns a function that inserts it again exactly as it was: same id,
+ * created_at, sort order, Today plan... Nothing about the table changes.
+ */
+async function deleteWithUndo(table: UndoableTable, id: number): Promise<Undo> {
+  const db = await getDb();
+  const [row] = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${table} WHERE id = $1`, [id]);
+  await db.execute(`DELETE FROM ${table} WHERE id = $1`, [id]);
+  return async () => {
+    if (!row) return;
+    const restored = { ...row };
+    // The task's milestone may have been deleted in the meantime: keep the task, unlinked.
+    if (table === "tasks" && restored.milestone_id != null) {
+      const found = await db.select<unknown[]>("SELECT 1 FROM milestones WHERE id = $1", [restored.milestone_id]);
+      if (found.length === 0) restored.milestone_id = null;
+    }
+    const columns = Object.keys(restored);
+    const placeholders = columns.map((_, i) => `$${i + 1}`).join(", ");
+    await db.execute(
+      `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`,
+      columns.map((c) => restored[c])
+    );
+  };
+}
+
 // ---------- Clients ----------
 
 export async function getClients(): Promise<Client[]> {
@@ -90,13 +123,15 @@ export async function getClients(): Promise<Client[]> {
   );
 }
 
-export async function addClient(input: ClientInput): Promise<void> {
+/** Returns the new client's id. */
+export async function addClient(input: ClientInput): Promise<number> {
   const db = await getDb();
-  await db.execute("INSERT INTO clients (name, email, notes) VALUES ($1, $2, $3)", [
+  const result = await db.execute("INSERT INTO clients (name, email, notes) VALUES ($1, $2, $3)", [
     input.name.trim(),
     input.email.trim(),
     input.notes.trim(),
   ]);
+  return result.lastInsertId!;
 }
 
 export async function updateClient(id: number, input: ClientInput): Promise<void> {
@@ -287,8 +322,13 @@ export async function updateTask(id: number, input: TaskInput): Promise<void> {
 
 /** The checkbox: done, or back to To do. */
 export async function setTaskDone(id: number, done: boolean): Promise<void> {
+  await setTaskStatus(id, done ? "done" : "todo");
+}
+
+/** Sets the status (and is_done with it), e.g. to undo a checkbox click on an In progress task. */
+export async function setTaskStatus(id: number, status: TaskStatus): Promise<void> {
   const db = await getDb();
-  await db.execute("UPDATE tasks SET is_done = $1, status = $2 WHERE id = $3", [done ? 1 : 0, done ? "done" : "todo", id]);
+  await db.execute("UPDATE tasks SET is_done = $1, status = $2 WHERE id = $3", [status === "done" ? 1 : 0, status, id]);
 }
 
 /**
@@ -316,10 +356,7 @@ export async function setTasksPlanned(ids: number[], day: string | null): Promis
   await db.execute(`UPDATE tasks SET planned_for = $1 WHERE id IN (${placeholders})`, [day, ...ids]);
 }
 
-export async function deleteTask(id: number): Promise<void> {
-  const db = await getDb();
-  await db.execute("DELETE FROM tasks WHERE id = $1", [id]);
-}
+export const deleteTask = (id: number) => deleteWithUndo("tasks", id);
 
 // ---------- Inbox ----------
 
@@ -340,10 +377,7 @@ export async function addInboxItem(text: string): Promise<void> {
   await db.execute("INSERT INTO inbox_items (text) VALUES ($1)", [text.trim()]);
 }
 
-export async function deleteInboxItem(id: number): Promise<void> {
-  const db = await getDb();
-  await db.execute("DELETE FROM inbox_items WHERE id = $1", [id]);
-}
+export const deleteInboxItem = (id: number) => deleteWithUndo("inbox_items", id);
 
 // ---------- Project info: notes, links, details ----------
 
@@ -420,10 +454,7 @@ export async function updateProjectLink(id: number, input: ProjectLinkInput): Pr
   ]);
 }
 
-export async function deleteProjectLink(id: number): Promise<void> {
-  const db = await getDb();
-  await db.execute("DELETE FROM project_links WHERE id = $1", [id]);
-}
+export const deleteProjectLink = (id: number) => deleteWithUndo("project_links", id);
 
 export const moveProjectLink = (id: number, direction: -1 | 1) => moveRow("project_links", id, direction);
 
@@ -454,10 +485,7 @@ export async function updateProjectDetail(id: number, field: "label" | "value", 
   await db.execute(sql, [text.trim(), id]);
 }
 
-export async function deleteProjectDetail(id: number): Promise<void> {
-  const db = await getDb();
-  await db.execute("DELETE FROM project_details WHERE id = $1", [id]);
-}
+export const deleteProjectDetail = (id: number) => deleteWithUndo("project_details", id);
 
 export const moveProjectDetail = (id: number, direction: -1 | 1) => moveRow("project_details", id, direction);
 
@@ -488,10 +516,7 @@ export async function updateProjectTemplate(id: number, input: ProjectTemplateIn
   );
 }
 
-export async function deleteProjectTemplate(id: number): Promise<void> {
-  const db = await getDb();
-  await db.execute("DELETE FROM project_templates WHERE id = $1", [id]);
-}
+export const deleteProjectTemplate = (id: number) => deleteWithUndo("project_templates", id);
 
 /** Adds a template's milestones and tasks to a (new) project. */
 export async function addOutlineToProject(projectId: number, outline: Outline, priority: Priority): Promise<void> {

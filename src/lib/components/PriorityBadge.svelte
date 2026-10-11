@@ -1,16 +1,20 @@
+<!--
+  Only the priorities that stand out are shown: High (red, it's urgent) and Low (quiet).
+  Medium is the normal case, so it shows nothing and lists stay calm.
+-->
 <script lang="ts">
-  import { PRIORITY_LABELS, type Priority } from "$lib/types";
+  import type { Priority } from "$lib/types";
+  import Icon from "./Icon.svelte";
 
   let { priority }: { priority: Priority } = $props();
-
-  const dot: Record<Priority, string> = {
-    high: "bg-red-400",
-    medium: "bg-amber-400",
-    low: "bg-zinc-500",
-  };
 </script>
 
-<span class="inline-flex items-center gap-1.5 text-xs text-zinc-400">
-  <span class="size-1.5 rounded-full {dot[priority]}"></span>
-  {PRIORITY_LABELS[priority]}
-</span>
+{#if priority === "high"}
+  <span class="inline-flex items-center gap-0.5 text-xs font-medium text-danger" title="High priority">
+    <Icon name="arrow-up" size={12} />High
+  </span>
+{:else if priority === "low"}
+  <span class="inline-flex items-center gap-0.5 text-xs text-faint" title="Low priority">
+    <Icon name="arrow-down" size={12} />Low
+  </span>
+{/if}

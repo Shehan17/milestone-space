@@ -1,25 +1,34 @@
 /**
  * Keyboard shortcuts. One window keydown listener (in +layout.svelte) calls handleGlobalKey:
- * it handles "g then a letter" navigation, "?" and "j" itself, then passes other keys to the
- * page that is showing, which registers its own keys with useShortcuts().
+ * it handles "g then a letter" navigation, "?", "j", "[" and Ctrl+Z itself, then passes other keys
+ * to the page that is showing, which registers its own keys with useShortcuts().
  *
  * When adding a shortcut, also add it to shortcutGroups() so the help dialog and the Settings page list it.
- * Task rows handle their own keys (j/k, x, e, t) in TaskRow.svelte.
+ * Task rows handle their own keys (j/k, x, e, t, Delete) in TaskRow.svelte.
  */
 import { goto } from "$app/navigation";
 import { onMount } from "svelte";
 import { quickCaptureKeys } from "./settings.svelte";
+import { toggleSidebar } from "./sidebar.svelte";
+import { undoLatest } from "./toast.svelte";
 
 /** The shortcuts dialog, opened with "?" or from the sidebar. */
 export const helpState = $state({ open: false });
 
-// Open modals, counted by Modal.svelte. Page shortcuts are off while one is open.
-let openModals = 0;
+// Open modals, newest last (Modal.svelte). Page shortcuts are off while one is open, and only
+// the newest one reacts to Esc.
+const modalStack: object[] = [];
 
+/** Called by a modal when it opens. */
 export function modalOpened() {
-  openModals++;
-  return () => {
-    openModals--;
+  const entry = {};
+  modalStack.push(entry);
+  return {
+    isTop: () => modalStack.at(-1) === entry,
+    close: () => {
+      const i = modalStack.indexOf(entry);
+      if (i >= 0) modalStack.splice(i, 1);
+    },
   };
 }
 
@@ -33,7 +42,7 @@ function isTyping(target: EventTarget | null): boolean {
  * Ctrl/Alt/Meta held (browser and system shortcuts), on key repeat, or while a modal is open.
  */
 export function plainKey(e: KeyboardEvent): string | null {
-  if (e.ctrlKey || e.altKey || e.metaKey || e.repeat || openModals > 0 || isTyping(e.target)) return null;
+  if (e.ctrlKey || e.altKey || e.metaKey || e.repeat || modalStack.length > 0 || isTyping(e.target)) return null;
   return e.key;
 }
 
@@ -69,6 +78,14 @@ let goTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function handleGlobalKey(e: KeyboardEvent) {
   if (e.defaultPrevented) return; // already handled, e.g. by a focused task row
+
+  // Ctrl+Z outside text fields: undo the last delete (while its message is showing).
+  const ctrlZ = (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "z";
+  if (ctrlZ && !isTyping(e.target) && modalStack.length === 0) {
+    if (undoLatest()) e.preventDefault();
+    return;
+  }
+
   const key = plainKey(e);
   if (key === null) return;
 
@@ -93,6 +110,12 @@ export function handleGlobalKey(e: KeyboardEvent) {
   if (key === "?") {
     e.preventDefault();
     helpState.open = true;
+    return;
+  }
+
+  if (key === "[") {
+    e.preventDefault();
+    toggleSidebar();
     return;
   }
 
@@ -139,6 +162,8 @@ export const shortcutGroups = (): { title: string; items: ShortcutInfo[] }[] => 
       { keys: [["?"]], label: "Show keyboard shortcuts" },
       { keys: [["N"]], label: "New task / project / client / inbox item (on its page)" },
       { keys: [["J"]], label: "Focus the first task" },
+      { keys: [["Ctrl", "Z"]], label: "Undo the last delete (while its message shows)" },
+      { keys: [["["]], label: "Collapse or expand the sidebar" },
     ],
   },
   {
@@ -149,6 +174,7 @@ export const shortcutGroups = (): { title: string; items: ShortcutInfo[] }[] => 
       { keys: [["X"], ["Space"]], label: "Mark done / not done" },
       { keys: [["Enter"], ["E"]], label: "Edit" },
       { keys: [["T"]], label: "Add to / remove from Today" },
+      { keys: [["Delete"]], label: "Delete (Ctrl+Z brings it back)" },
     ],
   },
   {
@@ -171,11 +197,13 @@ export const shortcutGroups = (): { title: string; items: ShortcutInfo[] }[] => 
     items: [
       { keys: [["←"], ["→"]], label: "Move to the previous / next column" },
       { keys: [["Enter"]], label: "Edit" },
+      { keys: [["Delete"]], label: "Delete (Ctrl+Z brings it back)" },
     ],
   },
   {
     title: "Forms",
     items: [
+      { keys: [["Enter"]], label: "Save (in a one-line field)" },
       { keys: [["Ctrl", "Enter"]], label: "Save (also inside text areas)" },
       { keys: [["Esc"]], label: "Close" },
     ],

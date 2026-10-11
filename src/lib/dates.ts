@@ -45,6 +45,21 @@ export function relativeDays(days: number): string {
   return `in ${days} days`;
 }
 
+/**
+ * How a deadline reads in lists: relative while it's close ("today", "in 3 days", "2 days overdue"),
+ * the date itself from a week out ("12 Nov"), where "in 23 days" says less than the date.
+ */
+export function deadlineText(date: string): string {
+  const days = daysUntil(date);
+  return days < 7 ? relativeDays(days) : formatDate(date);
+}
+
+/** "Fri, 17 Oct": the date with its weekday, for tooltips and the date field. */
+export function formatWeekdayDate(date: string): string {
+  const weekday = parseDate(date).toLocaleDateString("en", { weekday: "short" });
+  return `${weekday}, ${formatDate(date)}`;
+}
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**
@@ -102,6 +117,11 @@ export function daysLeftInWeek(): number {
   const weekday = new Date().getDay(); // 0 = Sunday
   const firstDay = settings.week_start === "sunday" ? 0 : 1;
   return 6 - ((weekday - firstDay + 7) % 7);
+}
+
+/** The first day of next week (Monday or Sunday, from Settings) as "YYYY-MM-DD". */
+export function startOfNextWeek(): string {
+  return dayFromToday(daysLeftInWeek() + 1);
 }
 
 /** "just now", "5 min ago", "3 h ago", "yesterday"... for created_at values (SQLite datetime('now'), UTC). */

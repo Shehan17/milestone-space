@@ -1,15 +1,19 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { openUrl } from "@tauri-apps/plugin-opener";
   import ClientForm from "$lib/components/ClientForm.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import Modal from "$lib/components/Modal.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
+  import Skeleton from "$lib/components/Skeleton.svelte";
   import { addClient, deleteClient, getClients, updateClient } from "$lib/db";
-  import type { Client, ClientInput } from "$lib/types";
   import { useShortcuts } from "$lib/shortcuts.svelte";
+  import { toast } from "$lib/toast.svelte";
+  import type { Client, ClientInput } from "$lib/types";
 
   let clients = $state<Client[]>([]);
+  let loaded = $state(false);
 
   let formOpen = $state(false);
   let editingId = $state<number | null>(null);
@@ -18,6 +22,7 @@
 
   async function load() {
     clients = await getClients();
+    loaded = true;
   }
 
   onMount(load);
@@ -38,6 +43,7 @@
     if (!draft.name.trim()) return;
     if (editingId === null) await addClient(draft);
     else await updateClient(editingId, draft);
+    toast.success(editingId === null ? "Client added" : "Client saved");
     formOpen = false;
     await load();
   }
@@ -45,71 +51,122 @@
   async function confirmDelete() {
     if (!toDelete) return;
     await deleteClient(toDelete.id);
+    toast.success(`“${toDelete.name}” deleted`);
     toDelete = null;
     await load();
+  }
+
+  async function email(address: string) {
+    try {
+      await openUrl(`mailto:${address}`);
+    } catch (e) {
+      toast.error("Couldn't open your email app", e);
+    }
   }
 
   useShortcuts({ n: openNew });
 </script>
 
-<PageHeader title="Clients" subtitle="{clients.length} total">
+<PageHeader title="Clients" subtitle={loaded ? `${clients.length} ${clients.length === 1 ? "client" : "clients"}` : ""}>
   {#snippet actions()}
-    <button type="button" class="btn btn-primary" onclick={openNew}><Icon name="plus" size={14} />New client</button>
+    <button type="button" class="btn btn-primary" onclick={openNew} title="New client (N)">
+      <Icon name="plus" size={14} />New client
+    </button>
   {/snippet}
 </PageHeader>
 
-<div class="px-8 py-6">
-  <div class="card divide-y divide-zinc-800/70">
-    {#each clients as client (client.id)}
-      <div class="group flex items-center gap-4 px-4 py-2.5">
-        <div class="w-56 min-w-0 shrink-0">
-          <p class="truncate text-sm font-medium text-zinc-100">{client.name}</p>
-          <p class="truncate text-xs text-zinc-500">{client.email || "No email"}</p>
-        </div>
-        <p class="min-w-0 flex-1 truncate text-xs text-zinc-500">{client.notes}</p>
-        <span class="shrink-0 text-xs text-zinc-400 tabular-nums">
-          {client.project_count}
-          {client.project_count === 1 ? "project" : "projects"}
-        </span>
-        <div class="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-          <button type="button" class="icon-btn" aria-label="Edit client" onclick={() => openEdit(client)}>
-            <Icon name="edit" size={14} />
-          </button>
-          <button
-            type="button"
-            class="icon-btn hover:text-red-400"
-            aria-label="Delete client"
-            onclick={() => (toDelete = client)}
-          >
-            <Icon name="trash" size={14} />
-          </button>
-        </div>
-      </div>
+<div class="page py-6">
+  <div class="card divide-y divide-line">
+    {#if !loaded}
+      <Skeleton />
     {:else}
-      <EmptyState message="No clients yet. Add your first client to get started." />
-    {/each}
+      {#each clients as client (client.id)}
+        <div class="group list-row py-2.5">
+          <button type="button" class="w-56 min-w-0 shrink-0 cursor-pointer text-left" onclick={() => openEdit(client)}>
+            <p class="truncate text-sm font-medium text-strong">{client.name}</p>
+            <p class="truncate text-xs text-faint">{client.email || "No email"}</p>
+          </button>
+          <p class="hidden min-w-0 flex-1 truncate text-xs text-faint md:block">{client.notes}</p>
+          <span class="flex-1 md:hidden"></span>
+          {#if client.email}
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Email {client.name}"
+              title="Email {client.email}"
+              onclick={() => email(client.email)}
+            >
+              <Icon name="mail" size={14} />
+            </button>
+          {/if}
+          <a
+            href="/projects?client={client.id}"
+            class="shrink-0 rounded-control px-1.5 py-0.5 text-xs text-muted tabular-nums transition-colors duration-150 hover:bg-hover hover:text-strong"
+            title="Show {client.name}'s projects"
+          >
+            {client.project_count}
+            {client.project_count === 1 ? "project" : "projects"}
+          </a>
+          <div class="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+            <button type="button" class="icon-btn" aria-label="Edit client" title="Edit" onclick={() => openEdit(client)}>
+              <Icon name="edit" size={14} />
+            </button>
+            <button
+              type="button"
+              class="icon-btn icon-btn-danger"
+              aria-label="Delete client"
+              title="Delete"
+              onclick={() => (toDelete = client)}
+            >
+              <Icon name="trash" size={14} />
+            </button>
+          </div>
+        </div>
+      {:else}
+        <EmptyState
+          icon="clients"
+          message="No clients yet"
+          hint="Clients are for client projects: add one to link its projects to it."
+          action={{ label: "New client", icon: "plus", primary: true, onclick: openNew }}
+        />
+      {/each}
+    {/if}
   </div>
 </div>
 
 <Modal
   open={formOpen}
   title={editingId === null ? "New client" : "Edit client"}
+  submitLabel={editingId === null ? "Add client" : "Save"}
   onclose={() => (formOpen = false)}
   onsubmit={save}
+  ondelete={editingId === null
+    ? undefined
+    : () => {
+        formOpen = false;
+        toDelete = clients.find((c) => c.id === editingId) ?? null;
+      }}
+  deleteLabel="Delete client"
 >
   <ClientForm bind:values={draft} />
 </Modal>
 
 <Modal
   open={toDelete !== null}
-  title="Delete client"
-  submitLabel="Delete"
+  title="Delete client?"
+  submitLabel="Delete client"
   danger
   onclose={() => (toDelete = null)}
   onsubmit={confirmDelete}
 >
-  <p class="text-sm text-zinc-300">
-    Delete <span class="font-medium text-zinc-100">{toDelete?.name}</span>? This also deletes their
-    {toDelete?.project_count ?? 0} project(s) with all milestones and tasks.
+  <p class="text-sm text-fg">
+    Delete <span class="font-medium text-strong">{toDelete?.name}</span>?
+    {#if toDelete?.project_count}
+      This also deletes their {toDelete.project_count}
+      {toDelete.project_count === 1 ? "project" : "projects"} with all milestones and tasks.
+    {/if}
   </p>
+  {#if toDelete?.project_count}
+    <p class="text-xs text-faint">This can't be undone, except by restoring a backup (Settings → Data and backup).</p>
+  {/if}
 </Modal>

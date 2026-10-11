@@ -66,18 +66,31 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
 - Reusable components in `src/lib/components/`. Forms (`ProjectForm`, `TaskForm`, ...) take a
   `$bindable` `values` object; the page owns the draft `$state` and opens it in `Modal`
   (which wraps a `<form>` and calls `onsubmit`). Pages load data in `onMount` and reload
-  after each change.
+  after each change; until the first load they show `Skeleton`, never the empty state.
+- Validation: wrap inputs in `Field` with an `error` (string or null, worked out from the values).
+  `Modal` won't submit while a field has one, shows the messages after the first Save, and
+  focuses the first bad field. Mark the field to focus first with `data-autofocus`. Edit dialogs
+  pass `ondelete` for the Delete button in the footer. Date fields use `DateInput` (quick choices).
+- Feedback: `toast.success("Task added")` etc. (`src/lib/toast.svelte.ts`, shown by `Toaster` in
+  `+layout.svelte`) after every action whose result isn't visible on the page.
+- Deletes: single rows (task, inbox item, link, detail, template) delete at once and offer Undo:
+  their `db.ts` delete returns an `undo` function (re-inserts the exact row) for `toast.undo(...)`,
+  which Ctrl+Z also runs. Deletes that cascade (project, client, milestone) keep a confirm dialog.
+- Empty lists use `EmptyState` with a message, a hint and the button that fixes it.
 - Friendly deadlines come from `src/lib/dates.ts` via `DeadlineLabel`: overdue red,
-  within 3 days orange, otherwise gray. Parse dates as local, not with `new Date("YYYY-MM-DD")` (UTC).
+  within 3 days orange, otherwise gray; relative within a week, the date after that; nothing when
+  there is no date. Parse dates as local, not with `new Date("YYYY-MM-DD")` (UTC).
 - Keyboard shortcuts live in `src/lib/shortcuts.svelte.ts`: pages register keys with
   `useShortcuts({ n: openNew })`, task rows handle their own keys in `TaskRow`. Add every new
-  shortcut to `shortcutGroups()` (the `?` dialog and Settings list it). No delete shortcut: deletes have no confirm.
+  shortcut to `shortcutGroups()` (the `?` dialog and Settings list it). Delete on a focused task
+  deletes it with Undo.
+- The project page keeps its tab in the URL (`/projects/5?tab=tasks`); link straight to a tab.
 - Settings that pages must respect: `formatDate`/`formatTime` follow the date/time format, new drafts
   use `emptyProject()` / `emptyTask()` (default type / priority), and `isArchived(project)` hides
   completed projects from lists when "Move to Archive" is on.
 - The main window runs reminders (`notifications.ts`, once a minute) and automatic backups
   (every 15 min) from `+layout.svelte`; it keeps running while hidden in the tray.
-- Uncaught promise rejections show as an error popup from `+layout.svelte`, so pages don't
+- Uncaught promise rejections show as an error toast from `+layout.svelte`, so pages don't
   need their own try/catch.
 
 ## Desktop shell (`src-tauri/src/lib.rs`)
@@ -98,12 +111,23 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
 
 ## Style
 
-- Compact (text-sm), Linear/Notion feel. Write components with `zinc-*` neutrals and `violet-*`
-  accent only: 4 color themes (Settings page, `src/lib/theme.ts`) redefine those palette variables in
-  `app.css` (light themes reverse the zinc scale). Other hues (indigo, blue...) won't follow the theme.
-- No UI libraries, no heavy animations. Icons are inline SVGs in `Icon.svelte`.
-- Shared classes (`.btn`, `.btn-primary`, `.input`, `.card`, `.icon-btn`, `.checkbox`) are in
-  `src/app.css`; reuse them instead of repeating long class lists.
+- Compact (text-sm), Linear/Notion feel. The default theme (Midnight) is near-black with an indigo
+  accent; red/orange only mean overdue, due soon, high priority or delete.
+- Colors are semantic tokens defined per theme in `app.css` (see the comment at its top): surfaces
+  `canvas sidebar surface raised field hover selected`, lines `line line-strong`, text
+  `strong fg muted faint`, `accent accent-hover accent-text accent-text-strong`,
+  `danger danger-solid warning success`. Use only these (`bg-surface`, `text-faint`, `border-line`...),
+  never Tailwind palette colors (`zinc-*`, `red-*`...), which don't follow the 4 themes or the accent
+  picker (`theme.ts`). Every text token passes WCAG AA on every surface; keep it that way.
+- No UI libraries, no heavy animations: transitions are 150 ms (`ms()` in `src/lib/motion.ts`, 0 with
+  reduced motion). Icons are inline Lucide SVGs in `Icon.svelte`; add new ones from Lucide.
+- Shared classes in `src/app.css`: `.page` (page width and padding, header and content), `.btn` +
+  `.btn-primary/-secondary/-ghost/-danger/-danger-ghost/-sm`, `.icon-btn(-danger)`, `.input(-sm)`,
+  `.card`, `.card-header`, `.card-title`, `.count`, `.list-row`, `.eyebrow`, `.kbd`, `.badge`,
+  `.chip`, `.checkbox`, `.switch`, `.link`. Reuse them instead of repeating long class lists.
+  The global `:focus-visible` ring is the accent; don't remove outlines without a replacement.
+- Narrow windows (< 960 px) collapse the sidebar to icons (`sidebar.svelte.ts`, also `[`);
+  use `lg:`/`xl:` to hide secondary columns and button labels when space is short.
 - Every project has a color; show it with `ProjectDot` next to project names.
 
 ## Notes

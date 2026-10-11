@@ -27,6 +27,7 @@
     type WeekStart,
   } from "$lib/settings.svelte";
   import { ACCENTS, THEMES, applyAppearance, getTheme, setTheme, type Theme, type ThemeId } from "$lib/theme";
+  import { toast } from "$lib/toast.svelte";
   import { PRIORITIES, PRIORITY_LABELS, PROJECT_TYPES, TYPE_LABELS } from "$lib/types";
 
   const isDev = import.meta.env.DEV;
@@ -57,8 +58,12 @@
   });
 
   async function toggleAutostart() {
-    if (autostart) await disable();
-    else await enable();
+    try {
+      if (autostart) await disable();
+      else await enable();
+    } catch (e) {
+      toast.error("Couldn't change Start with Windows", e);
+    }
     autostart = await isEnabled();
   }
 
@@ -128,6 +133,7 @@
     testError = "";
     try {
       await sendTestNotification();
+      toast.success("Test notification sent", { detail: "It should appear in the corner of your screen." });
     } catch (e) {
       testError = String(e);
     }
@@ -151,6 +157,29 @@
     { id: "data", label: "Data and backup" },
     { id: "about", label: "About" },
   ];
+
+  // The side navigation highlights the section at the top of the page while scrolling.
+  let currentSection = $state(SECTIONS[0].id);
+
+  onMount(() => {
+    const visible = new Map<string, boolean>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) visible.set(entry.target.id, entry.isIntersecting);
+        currentSection = SECTIONS.find((s) => visible.get(s.id))?.id ?? currentSection;
+      },
+      // Only the band just below the sticky page header counts.
+      { rootMargin: "-80px 0px -55% 0px" }
+    );
+    document.querySelectorAll("[data-settings-section]").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  });
+
+  function goToSection(event: MouseEvent, id: string) {
+    event.preventDefault();
+    currentSection = id;
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  }
 </script>
 
 <!-- A miniature of the app drawn in the theme's own colors, so it previews correctly from any theme. -->
@@ -177,9 +206,9 @@
 {#snippet swatch(color: string, selected: boolean, label: string, onclick: () => void)}
   <button
     type="button"
-    class="size-6 cursor-pointer rounded-full ring-offset-2 ring-offset-zinc-900 {selected
-      ? 'ring-2 ring-zinc-200'
-      : 'hover:ring-2 hover:ring-zinc-600'}"
+    class="size-6 cursor-pointer rounded-full ring-offset-2 ring-offset-surface transition-shadow duration-150 {selected
+      ? 'ring-2 ring-strong'
+      : 'hover:ring-2 hover:ring-line-strong'}"
     style="background-color: {color}"
     aria-label={label}
     aria-pressed={selected}
@@ -190,16 +219,17 @@
 
 <PageHeader title="Settings" subtitle="Saved automatically" />
 
-<div class="flex gap-8 px-8 py-6">
-  <nav class="sticky top-6 hidden w-40 shrink-0 space-y-0.5 self-start lg:block" aria-label="Settings sections">
+<div class="page flex gap-8 py-6">
+  <nav class="sticky top-20 hidden w-40 shrink-0 space-y-0.5 self-start lg:block" aria-label="Settings sections">
     {#each SECTIONS as section (section.id)}
+      {@const current = currentSection === section.id}
       <a
         href="#{section.id}"
-        class="block rounded-md px-2.5 py-1 text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-        onclick={(e) => {
-          e.preventDefault();
-          document.getElementById(section.id)?.scrollIntoView({ behavior: "smooth" });
-        }}>{section.label}</a
+        aria-current={current ? "location" : undefined}
+        class="block rounded-control px-2.5 py-1 text-sm transition-colors duration-150 {current
+          ? 'bg-selected text-strong'
+          : 'text-muted hover:bg-hover hover:text-strong'}"
+        onclick={(e) => goToSection(e, section.id)}>{section.label}</a
       >
     {/each}
   </nav>
@@ -212,14 +242,14 @@
         toggle
         disabled={isDev}
       >
-        <input type="checkbox" class="checkbox" checked={autostart} disabled={isDev} onchange={toggleAutostart} />
+        <input type="checkbox" class="switch" checked={autostart} disabled={isDev} onchange={toggleAutostart} />
       </SettingRow>
       <SettingRow
         label="Start minimized to tray"
         description="When it starts with Windows, stay in the tray instead of opening the window."
         toggle
       >
-        <input type="checkbox" class="checkbox" bind:checked={settings.start_minimized} />
+        <input type="checkbox" class="switch" bind:checked={settings.start_minimized} />
       </SettingRow>
       <SettingRow
         label="Close button minimizes to tray"
@@ -228,10 +258,10 @@
           : "Closing the window quits MilestoneSpace: no quick capture, reminders or automatic backups until you open it again."}
         toggle
       >
-        <input type="checkbox" class="checkbox" bind:checked={settings.close_to_tray} />
+        <input type="checkbox" class="switch" bind:checked={settings.close_to_tray} />
       </SettingRow>
       <SettingRow label="Start page" description="The page that opens first.">
-        <select class="input w-36 py-1 text-xs" bind:value={settings.start_page} aria-label="Start page">
+        <select class="input input-sm w-36" bind:value={settings.start_page} aria-label="Start page">
           {#each START_PAGES as page (page.value)}
             <option value={page.value}>{page.label}</option>
           {/each}
@@ -243,26 +273,26 @@
       <div class="space-y-5 p-4">
         {#each themeGroups as group (group.label)}
           <div>
-            <p class="mb-2 text-[11px] font-medium tracking-wide text-zinc-500 uppercase">{group.label}</p>
+            <p class="eyebrow mb-2">{group.label}</p>
             <div class="grid gap-3 sm:grid-cols-2">
               {#each group.themes as theme (theme.id)}
                 {@const selected = currentTheme === theme.id}
                 <button
                   type="button"
-                  class="cursor-pointer rounded-lg border p-2.5 text-left transition-colors {selected
-                    ? 'border-violet-500 ring-1 ring-violet-500/40'
-                    : 'border-zinc-800 hover:border-zinc-700'}"
+                  class="cursor-pointer rounded-card border p-2.5 text-left transition-colors duration-150 {selected
+                    ? 'border-accent ring-2 ring-accent/25'
+                    : 'border-line hover:border-line-strong'}"
                   aria-pressed={selected}
                   onclick={() => chooseTheme(theme.id)}
                 >
                   {@render preview(theme)}
                   <div class="mt-2.5 flex items-center gap-2">
-                    <span class="text-sm font-medium text-zinc-100">{theme.name}</span>
+                    <span class="text-sm font-medium text-strong">{theme.name}</span>
                     {#if selected}
-                      <span class="ml-auto text-violet-400"><Icon name="check" size={14} /></span>
+                      <span class="ml-auto text-accent-text"><Icon name="check" size={14} /></span>
                     {/if}
                   </div>
-                  <p class="text-xs text-zinc-500">{theme.description}</p>
+                  <p class="text-xs text-faint">{theme.description}</p>
                 </button>
               {/each}
             </div>
@@ -281,39 +311,39 @@
           "Theme default",
           () => (settings.accent = "theme")
         )}
-        <span class="mx-1 h-4 w-px bg-zinc-800"></span>
+        <span class="mx-1 h-4 w-px bg-line"></span>
         {#each ACCENTS as accent (accent.id)}
-          {@render swatch(accent[themeMode][2], settings.accent === accent.id, accent.name, () => (settings.accent = accent.id))}
+          {@render swatch(accent[themeMode][3], settings.accent === accent.id, accent.name, () => (settings.accent = accent.id))}
         {/each}
       </SettingRow>
       <SettingRow label="Spacing" description="Comfortable adds more room around rows and buttons.">
-        <Tabs options={densityOptions} bind:value={settings.density} />
+        <Tabs options={densityOptions} bind:value={settings.density} label="Spacing" />
       </SettingRow>
       <SettingRow label="Text size">
-        <Tabs options={fontSizeOptions} bind:value={settings.font_size} />
+        <Tabs options={fontSizeOptions} bind:value={settings.font_size} label="Text size" />
       </SettingRow>
       <SettingRow label="Date format" description="Dates in this year leave out the year in the worded formats.">
-        <select class="input w-44 py-1 text-xs" bind:value={settings.date_format} aria-label="Date format">
+        <select class="input input-sm w-44" bind:value={settings.date_format} aria-label="Date format">
           {#each DATE_FORMATS as format (format)}
             <option value={format}>{formatDate(EXAMPLE_DATE, format)}</option>
           {/each}
         </select>
       </SettingRow>
       <SettingRow label="Time format">
-        <Tabs options={timeOptions} bind:value={settings.time_format} />
+        <Tabs options={timeOptions} bind:value={settings.time_format} label="Time format" />
       </SettingRow>
-      <SettingRow label="Week starts on" description="Used for “Due this week” on the dashboard.">
-        <Tabs options={weekOptions} bind:value={settings.week_start} />
+      <SettingRow label="Week starts on" description="Used for “Due this week” on the dashboard and “Next week” in date fields.">
+        <Tabs options={weekOptions} bind:value={settings.week_start} label="Week starts on" />
       </SettingRow>
     </SettingsSection>
 
     <SettingsSection id="notifications" title="Notifications" description="Windows notifications about deadlines of open tasks, milestones and projects.">
       <SettingRow label="Notifications" description="Turn all reminders and the daily summary on or off." toggle>
-        <input type="checkbox" class="checkbox" bind:checked={settings.notifications} />
+        <input type="checkbox" class="switch" bind:checked={settings.notifications} />
       </SettingRow>
       <SettingRow label="Deadline reminders" description="When to remind you before something is due." disabled={!settings.notifications}>
         {#each REMINDER_OPTIONS as option (option.days)}
-          <label class="flex cursor-pointer items-center gap-1.5 text-xs text-zinc-300">
+          <label class="flex cursor-pointer items-center gap-1.5 text-xs text-fg">
             <input
               type="checkbox"
               class="checkbox"
@@ -331,7 +361,7 @@
         toggle
         disabled={!settings.notifications}
       >
-        <input type="checkbox" class="checkbox" bind:checked={settings.daily_summary} disabled={!settings.notifications} />
+        <input type="checkbox" class="switch" bind:checked={settings.daily_summary} disabled={!settings.notifications} />
       </SettingRow>
       <SettingRow
         label="Notification time"
@@ -349,17 +379,17 @@
       >
         <input
           type="checkbox"
-          class="checkbox"
+          class="switch"
           bind:checked={settings.quiet_hours}
           disabled={!settings.notifications}
           aria-label="Quiet hours"
         />
         <TimeSelect bind:value={settings.quiet_start} label="Quiet from" disabled={!settings.notifications || !settings.quiet_hours} />
-        <span class="text-xs text-zinc-500">to</span>
+        <span class="text-xs text-faint">to</span>
         <TimeSelect bind:value={settings.quiet_end} label="Quiet until" disabled={!settings.notifications || !settings.quiet_hours} />
       </SettingRow>
       <SettingRow label="Test" description={testError || "Shows today's summary now, to check that notifications appear."}>
-        <button type="button" class="btn btn-ghost border border-zinc-800" onclick={testNotification}>Send a test</button>
+        <button type="button" class="btn btn-secondary" onclick={testNotification}>Send a test</button>
       </SettingRow>
     </SettingsSection>
 
@@ -368,17 +398,17 @@
         <HotkeyRecorder />
       </SettingRow>
       <div class="p-4">
-        <p class="mb-3 text-sm text-zinc-200">All keyboard shortcuts</p>
+        <p class="mb-3 text-sm text-fg">All keyboard shortcuts</p>
         <ShortcutList columns />
       </div>
     </SettingsSection>
 
     <SettingsSection id="projects" title="Projects and tasks">
       <SettingRow label="Default project type" description="For new projects.">
-        <Tabs options={typeOptions} bind:value={settings.default_project_type} />
+        <Tabs options={typeOptions} bind:value={settings.default_project_type} label="Default project type" />
       </SettingRow>
       <SettingRow label="Default task priority" description="For new tasks.">
-        <Tabs options={priorityOptions} bind:value={settings.default_priority} />
+        <Tabs options={priorityOptions} bind:value={settings.default_priority} label="Default task priority" />
       </SettingRow>
       <SettingRow
         label="Completed projects"
@@ -386,7 +416,7 @@
           ? "Hidden from lists, tasks and the dashboard. Find them under Projects → Archive."
           : "Stay in the project list with the others."}
       >
-        <Tabs options={completedOptions} bind:value={settings.completed_projects} />
+        <Tabs options={completedOptions} bind:value={settings.completed_projects} label="Completed projects" />
       </SettingRow>
       <SettingRow label="Project templates" description="Start new projects with milestones and tasks already in place.">
         {#snippet below()}
@@ -401,15 +431,15 @@
 
     <SettingsSection id="about" title="About">
       <SettingRow label="MilestoneSpace" description="Your own workspace for projects, milestones, tasks and deadlines.">
-        <span class="text-xs text-zinc-400 tabular-nums">Version {version}{isDev ? " (development build)" : ""}</span>
+        <span class="text-xs text-muted tabular-nums">Version {version}{isDev ? " (development build)" : ""}</span>
       </SettingRow>
       <SettingRow label="Database">
         {#snippet below()}
-          <p class="input truncate py-1 text-xs text-zinc-400 select-all" title={databasePath}>{databasePath}</p>
+          <p class="input input-sm truncate text-muted select-all" title={databasePath}>{databasePath}</p>
         {/snippet}
       </SettingRow>
       <SettingRow label="Source code" description="github.com/Shehan17/milestone-space">
-        <button type="button" class="btn btn-ghost border border-zinc-800" onclick={() => openUrl(GITHUB_URL)}>
+        <button type="button" class="btn btn-secondary" onclick={() => openUrl(GITHUB_URL)}>
           <Icon name="github" size={14} />Open on GitHub
         </button>
       </SettingRow>

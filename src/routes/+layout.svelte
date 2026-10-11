@@ -4,28 +4,28 @@
   import { page } from "$app/state";
   import ShortcutsHelp from "$lib/components/ShortcutsHelp.svelte";
   import Sidebar from "$lib/components/Sidebar.svelte";
+  import Toaster from "$lib/components/Toaster.svelte";
   import { runAutoBackup } from "$lib/backup.svelte";
   import { initDb } from "$lib/db";
   import { onInboxChanged, refreshInboxCount } from "$lib/inbox.svelte";
   import { checkNotifications } from "$lib/notifications";
   import { handleGlobalKey } from "$lib/shortcuts.svelte";
+  import { toast } from "$lib/toast.svelte";
 
   let { children } = $props();
 
-  // The quick capture window (/quick) is just the page: no sidebar, shortcuts or error popup.
+  // The quick capture window (/quick) is just the page: no sidebar, shortcuts or error messages.
   const bare = page.url.pathname.startsWith("/quick");
 
-  let error = $state("");
-
   onMount(() => {
-    // Any failed database call that isn't caught on a page ends up here.
+    // Any failed database call that isn't caught on a page ends up here, as an error message.
     const showError = (event: PromiseRejectionEvent) => {
-      error = String(event.reason);
+      toast.error("Something went wrong. Your last change may not have been saved.", event.reason);
     };
     window.addEventListener("unhandledrejection", showError);
     initDb()
       .then(() => (bare ? undefined : refreshInboxCount()))
-      .catch((e) => (error = String(e)));
+      .catch((e) => toast.error("Couldn't open the database", e));
     // Keep the sidebar's Inbox count right when the quick capture window saves something.
     const stopListening = bare ? () => {} : onInboxChanged(refreshInboxCount);
 
@@ -60,13 +60,5 @@
   </div>
 
   <ShortcutsHelp />
-
-  {#if error}
-    <div
-      class="fixed right-4 bottom-4 z-50 flex max-w-md items-start gap-3 rounded-lg border border-red-500/30 bg-red-950/90 px-4 py-3 text-sm text-red-200 shadow-lg"
-    >
-      <p class="flex-1 break-words">{error}</p>
-      <button type="button" class="icon-btn text-red-300" onclick={() => (error = "")}>Dismiss</button>
-    </div>
-  {/if}
+  <Toaster />
 {/if}

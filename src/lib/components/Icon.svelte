@@ -1,3 +1,4 @@
+<!-- Icons from Lucide (lucide.dev), inlined so there is nothing to load. Add new ones from the same set. -->
 <script module lang="ts">
   export type IconName =
     | "dashboard"
@@ -26,7 +27,19 @@
     | "inbox"
     | "folder"
     | "code"
-    | "settings";
+    | "settings"
+    | "alert"
+    | "check-circle"
+    | "info"
+    | "panel"
+    | "keyboard"
+    | "arrow-up"
+    | "arrow-down"
+    | "calendar"
+    | "mail"
+    | "pause"
+    | "list"
+    | "board";
 </script>
 
 <script lang="ts">
@@ -43,6 +56,7 @@
   stroke-linecap="round"
   stroke-linejoin="round"
   aria-hidden="true"
+  class="shrink-0"
 >
   {#if name === "dashboard"}
     <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -148,5 +162,58 @@
     <path
       d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"
     />
+  {:else if name === "alert"}
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 8v4" />
+    <path d="M12 16h.01" />
+  {:else if name === "check-circle"}
+    <circle cx="12" cy="12" r="10" />
+    <path d="m9 12 2 2 4-4" />
+  {:else if name === "info"}
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 16v-4" />
+    <path d="M12 8h.01" />
+  {:else if name === "panel"}
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M9 3v18" />
+  {:else if name === "keyboard"}
+    <path d="M10 8h.01" />
+    <path d="M12 12h.01" />
+    <path d="M14 8h.01" />
+    <path d="M16 12h.01" />
+    <path d="M18 8h.01" />
+    <path d="M6 8h.01" />
+    <path d="M7 16h10" />
+    <path d="M8 12h.01" />
+    <rect width="20" height="16" x="2" y="4" rx="2" />
+  {:else if name === "arrow-up"}
+    <path d="m5 12 7-7 7 7" />
+    <path d="M12 19V5" />
+  {:else if name === "arrow-down"}
+    <path d="M12 5v14" />
+    <path d="m19 12-7 7-7-7" />
+  {:else if name === "calendar"}
+    <path d="M8 2v4" />
+    <path d="M16 2v4" />
+    <rect width="18" height="18" x="3" y="4" rx="2" />
+    <path d="M3 10h18" />
+  {:else if name === "mail"}
+    <rect width="20" height="16" x="2" y="4" rx="2" />
+    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+  {:else if name === "pause"}
+    <circle cx="12" cy="12" r="10" />
+    <path d="M10 15V9" />
+    <path d="M14 15V9" />
+  {:else if name === "list"}
+    <path d="M3 12h.01" />
+    <path d="M3 18h.01" />
+    <path d="M3 6h.01" />
+    <path d="M8 12h13" />
+    <path d="M8 18h13" />
+    <path d="M8 6h13" />
+  {:else if name === "board"}
+    <path d="M6 5v11" />
+    <path d="M12 5v6" />
+    <path d="M18 5v14" />
   {/if}
 </svg>

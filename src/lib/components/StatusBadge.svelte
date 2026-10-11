@@ -1,15 +1,23 @@
 <script lang="ts">
   import { STATUS_LABELS, type ProjectStatus } from "$lib/types";
+  import Icon, { type IconName } from "./Icon.svelte";
 
   let { status }: { status: ProjectStatus } = $props();
 
+  // Active is the accent; on hold and completed step back. No warm colors: those mean "late".
   const styles: Record<ProjectStatus, string> = {
-    active: "bg-violet-500/15 text-violet-300 ring-violet-500/30",
-    on_hold: "bg-amber-500/10 text-amber-300 ring-amber-500/25",
-    completed: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/25",
+    active: "bg-accent/15 text-accent-text-strong",
+    on_hold: "bg-hover text-muted",
+    completed: "bg-hover text-muted",
   };
+  const icons: Partial<Record<ProjectStatus, IconName>> = { on_hold: "pause", completed: "check" };
 </script>
 
-<span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset {styles[status]}">
+<span class="badge {styles[status]}">
+  {#if icons[status]}
+    <Icon name={icons[status]!} size={12} />
+  {:else}
+    <span class="size-1.5 rounded-full bg-current"></span>
+  {/if}
   {STATUS_LABELS[status]}
 </span>

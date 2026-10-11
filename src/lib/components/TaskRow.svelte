@@ -15,6 +15,7 @@
     showProject?: boolean;
     ontoggle: TaskAction;
     onedit: TaskAction;
+    /** Deletes right away; the page shows an Undo message. */
     ondelete: TaskAction;
     /** Shows the sun button that adds the task to, or removes it from, the Today list. */
     onplan?: TaskAction;
@@ -65,6 +66,7 @@
       " ": () => runAction(row, ontoggle),
       e: () => onedit(task),
       Enter: () => onedit(task),
+      Delete: () => runAction(row, ondelete),
     };
     if (onplan) actions.t = () => runAction(row, onplan);
 
@@ -78,7 +80,7 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_static_element_interactions -->
 <div
-  class="group flex items-center gap-3 px-4 py-2 outline-none hover:bg-zinc-800/30 focus-visible:bg-zinc-800/50 focus-visible:shadow-[inset_2px_0_0_var(--color-violet-500)]"
+  class="group list-row outline-none focus-visible:bg-hover focus-visible:shadow-[inset_2px_0_0_var(--accent)]"
   tabindex="0"
   data-task-row
   data-task-id={task.id}
@@ -94,40 +96,38 @@
   />
 
   <div class="min-w-0 flex-1">
-    <p class="truncate text-sm {task.is_done ? 'text-zinc-500 line-through' : 'text-zinc-200'}">
+    <p class="truncate text-sm {task.is_done ? 'text-faint line-through' : 'text-fg'}">
       {task.title}
     </p>
     {#if showProject || task.milestone_title || task.status === "in_progress"}
-      <p class="flex items-center gap-1.5 truncate text-xs text-zinc-500">
+      <p class="flex items-center gap-2 truncate text-xs text-faint">
         {#if task.status === "in_progress"}
-          <span class="inline-flex items-center gap-1 text-violet-400">
-            <span class="size-1.5 rounded-full bg-violet-400"></span>In progress
+          <span class="inline-flex shrink-0 items-center gap-1 text-accent-text">
+            <span class="size-1.5 rounded-full bg-current"></span>In progress
           </span>
         {/if}
         {#if showProject}
-          <a href="/projects/{task.project_id}" class="inline-flex items-center gap-1.5 hover:text-zinc-300">
-            <ProjectDot color={task.project_color} size={7} />{task.project_name}
+          <a href="/projects/{task.project_id}?tab=tasks" class="inline-flex min-w-0 items-center gap-1.5 hover:text-fg">
+            <ProjectDot color={task.project_color} size={7} /><span class="truncate">{task.project_name}</span>
           </a>
         {/if}
         {#if task.milestone_title}
-          <span class="inline-flex items-center gap-1"><Icon name="flag" size={11} />{task.milestone_title}</span>
+          <span class="inline-flex min-w-0 items-center gap-1"><Icon name="flag" size={11} /><span class="truncate">{task.milestone_title}</span></span>
         {/if}
       </p>
     {/if}
   </div>
 
-  <div class="w-16 shrink-0"><PriorityBadge priority={task.priority} /></div>
-  <div class="w-28 shrink-0 text-right"><DeadlineLabel date={task.due_date} done={task.is_done} /></div>
+  <div class="w-12 shrink-0"><PriorityBadge priority={task.priority} /></div>
+  <div class="w-24 shrink-0 text-right"><DeadlineLabel date={task.due_date} done={task.is_done} /></div>
 
   {#if onplan}
     <!-- Always visible while the task is on today's list, so the list membership is easy to see. -->
     <button
       type="button"
-      class="icon-btn {plannedToday
-        ? 'text-violet-400'
-        : 'opacity-0 group-hover:opacity-100 focus:opacity-100'}"
+      class="icon-btn {plannedToday ? 'text-accent-text' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}"
       aria-label={plannedToday ? "Remove from Today" : "Add to Today"}
-      title={plannedToday ? "Remove from Today" : "Add to Today"}
+      title={plannedToday ? "Remove from Today (T)" : "Add to Today (T)"}
       aria-pressed={plannedToday}
       onclick={() => onplan(task)}
     >
@@ -136,10 +136,10 @@
   {/if}
 
   <div class="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-    <button type="button" class="icon-btn" aria-label="Edit task" onclick={() => onedit(task)}>
+    <button type="button" class="icon-btn" aria-label="Edit task" title="Edit (E)" onclick={() => onedit(task)}>
       <Icon name="edit" size={14} />
     </button>
-    <button type="button" class="icon-btn hover:text-red-400" aria-label="Delete task" onclick={() => ondelete(task)}>
+    <button type="button" class="icon-btn icon-btn-danger" aria-label="Delete task" title="Delete (Delete)" onclick={() => ondelete(task)}>
       <Icon name="trash" size={14} />
     </button>
   </div>

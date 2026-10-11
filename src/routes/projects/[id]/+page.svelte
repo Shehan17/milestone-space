@@ -1,16 +1,21 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
+  import { untrack } from "svelte";
+  import { flip } from "svelte/animate";
+  import { goto, replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import DeadlineLabel from "$lib/components/DeadlineLabel.svelte";
   import EmptyState from "$lib/components/EmptyState.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import MilestoneForm from "$lib/components/MilestoneForm.svelte";
   import Modal from "$lib/components/Modal.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
+  import ProgressBar from "$lib/components/ProgressBar.svelte";
   import ProjectDetails from "$lib/components/ProjectDetails.svelte";
   import ProjectDot from "$lib/components/ProjectDot.svelte";
   import ProjectForm, { emptyProject } from "$lib/components/ProjectForm.svelte";
   import ProjectLinks from "$lib/components/ProjectLinks.svelte";
   import ProjectNotes from "$lib/components/ProjectNotes.svelte";
+  import Skeleton from "$lib/components/Skeleton.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import Tabs from "$lib/components/Tabs.svelte";
   import TaskBoard from "$lib/components/TaskBoard.svelte";
@@ -30,14 +35,17 @@
     setMilestoneDone,
     setProjectPinned,
     setTaskDone,
+    setTaskStatus,
     setTasksPlanned,
     updateMilestone,
     updateProject,
     updateTask,
   } from "$lib/db";
   import { todayString } from "$lib/dates";
+  import { ms } from "$lib/motion";
   import { openFolder, openInVsCode } from "$lib/system";
   import { useShortcuts } from "$lib/shortcuts.svelte";
+  import { toast } from "$lib/toast.svelte";
   import {
     TYPE_LABELS,
     type Client,
@@ -61,7 +69,8 @@
   async function load(id: number) {
     const [p, m, t] = await Promise.all([getProject(id), getMilestones(id), getTasks(id)]);
     if (id !== project?.id) {
-      // Another project: its own view, and no filter carried over.
+      // Another project: its own tab and view, and no filter carried over.
+      tab = readTab(id);
       taskView = readTaskView(id);
       milestoneFilter = "all";
     }
@@ -74,14 +83,45 @@
   const reload = () => load(projectId);
 
   $effect(() => {
-    load(projectId);
+    const id = projectId;
+    untrack(() => load(id));
   });
 
   let doneTasks = $derived(tasks.filter((t) => t.is_done).length);
   let doneMilestones = $derived(milestones.filter((m) => m.is_done).length);
 
+  // ----- Tabs: in the address (?tab=tasks, so links can open one and Back returns to it),
+  // and remembered per project (a display preference, so localStorage). -----
   type Tab = "overview" | "tasks" | "milestones" | "info";
+  const TABS: Tab[] = ["overview", "tasks", "milestones", "info"];
   let tab = $state<Tab>("overview");
+
+  const tabKey = (id: number) => `milestonespace.projectTab.${id}`;
+  const isTab = (value: unknown): value is Tab => TABS.includes(value as Tab);
+
+  function readTab(id: number): Tab {
+    const fromUrl = page.url.searchParams.get("tab");
+    if (isTab(fromUrl)) return fromUrl;
+    try {
+      const stored = localStorage.getItem(tabKey(id));
+      if (isTab(stored)) return stored;
+    } catch {
+      // Not remembered: start on the overview.
+    }
+    return "overview";
+  }
+
+  function setTab(next: Tab) {
+    tab = next;
+    try {
+      localStorage.setItem(tabKey(projectId), next);
+    } catch {
+      // Still shown until the page is left.
+    }
+    const url = new URL(page.url);
+    url.searchParams.set("tab", next);
+    replaceState(url, {});
+  }
 
   /** Open tasks and milestones with a due date, nearest first (overdue ones lead). */
   type UpcomingItem = { kind: "task"; item: Task } | { kind: "milestone"; item: Milestone };
@@ -104,13 +144,40 @@
     return first ? { title: first.item.title, date: first.item.due_date } : null;
   });
 
-  function toggleUpcoming(u: UpcomingItem) {
-    return u.kind === "task" ? toggleTask(u.item) : toggleMilestone(u.item);
+  /** Checking an item in Up next makes it disappear, so it comes with Undo. */
+  async function completeUpcoming(u: UpcomingItem) {
+    if (u.kind === "task") {
+      const { id, status } = u.item;
+      await setTaskDone(id, true);
+      await reload();
+      toast.undo("Task completed", async () => {
+        await setTaskStatus(id, status);
+        await reload();
+      });
+    } else {
+      const { id } = u.item;
+      await setMilestoneDone(id, true);
+      await reload();
+      toast.undo("Milestone reached", async () => {
+        await setMilestoneDone(id, false);
+        await reload();
+      });
+    }
   }
 
   function milestoneProgress(milestoneId: number) {
     const linked = tasks.filter((t) => t.milestone_id === milestoneId);
     return { done: linked.filter((t) => t.is_done).length, total: linked.length };
+  }
+
+  let openMilestones = $derived(milestones.filter((m) => !m.is_done));
+
+  async function openPath(action: (path: string) => Promise<void>, path: string) {
+    try {
+      await action(path);
+    } catch (e) {
+      toast.error(`Couldn't open ${path}`, e);
+    }
   }
 
   // ----- Project edit / delete -----
@@ -139,17 +206,23 @@
     if (projectDraft.type === "client" && projectDraft.client_id === null) return;
     await updateProject(projectId, projectDraft);
     projectFormOpen = false;
+    toast.success("Project saved");
     await reload();
   }
 
   async function togglePinned() {
     if (!project) return;
-    await setProjectPinned(projectId, !project.pinned_at);
+    const wasPinned = !!project.pinned_at;
+    await setProjectPinned(projectId, !wasPinned);
     await reload();
+    toast.success(wasPinned ? "Unpinned from the Dashboard" : "Pinned to the Dashboard");
   }
 
   async function removeProject() {
+    const name = project?.name ?? "Project";
     await deleteProject(projectId);
+    confirmProjectDelete = false;
+    toast.success(`“${name}” deleted`);
     await goto("/projects");
   }
 
@@ -175,6 +248,7 @@
     if (!milestoneDraft.title.trim()) return;
     if (editingMilestoneId === null) await addMilestone(milestoneDraft);
     else await updateMilestone(editingMilestoneId, milestoneDraft);
+    toast.success(editingMilestoneId === null ? "Milestone added" : "Milestone saved");
     milestoneFormOpen = false;
     await reload();
   }
@@ -187,6 +261,7 @@
   async function removeMilestone() {
     if (!milestoneToDelete) return;
     await deleteMilestone(milestoneToDelete.id);
+    toast.success(`Milestone “${milestoneToDelete.title}” deleted`);
     milestoneToDelete = null;
     await reload();
   }
@@ -264,6 +339,7 @@
     if (!taskDraft.title.trim()) return;
     if (editingTaskId === null) await addTask(taskDraft);
     else await updateTask(editingTaskId, taskDraft);
+    toast.success(editingTaskId === null ? "Task added" : "Task saved");
     taskFormOpen = false;
     await reload();
   }
@@ -274,69 +350,140 @@
   }
 
   async function togglePlanned(t: Task) {
-    await setTasksPlanned([t.id], t.planned_for === todayString() ? null : todayString());
+    const planned = t.planned_for === todayString();
+    await setTasksPlanned([t.id], planned ? null : todayString());
     await reload();
+    toast.success(planned ? "Removed from Today" : "Added to Today");
   }
 
   async function removeTask(t: Task) {
-    await deleteTask(t.id);
+    const undo = await deleteTask(t.id);
     await reload();
+    toast.undo("Task deleted", async () => {
+      await undo();
+      await reload();
+    });
+  }
+
+  function deleteEditingTask() {
+    const t = tasks.find((x) => x.id === editingTaskId);
+    taskFormOpen = false;
+    if (t) removeTask(t);
   }
 
   useShortcuts({
     n: () => openNewTask(),
     m: openNewMilestone,
     e: openProjectEdit,
-    o: () => project?.local_path && openFolder(project.local_path),
-    v: () => project?.local_path && openInVsCode(project.local_path),
-    "1": () => (tab = "overview"),
-    "2": () => (tab = "tasks"),
-    "3": () => (tab = "milestones"),
-    "4": () => (tab = "info"),
+    o: () => project?.local_path && openPath(openFolder, project.local_path),
+    v: () => project?.local_path && openPath(openInVsCode, project.local_path),
+    "1": () => setTab("overview"),
+    "2": () => setTab("tasks"),
+    "3": () => setTab("milestones"),
+    "4": () => setTab("info"),
     b: () => {
-      tab = "tasks";
+      setTab("tasks");
       setTaskView(taskView === "board" ? "list" : "board");
     },
   });
 </script>
 
-<div class="flex min-h-14 items-center gap-2 border-b border-zinc-800/80 px-8 py-3">
-  <a href="/projects" class="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-200">
-    <Icon name="back" size={14} />Projects
-  </a>
-  {#if project}
-    <span class="text-zinc-700">/</span>
-    <ProjectDot color={project.color} />
-    <span class="truncate text-sm text-zinc-300">{project.name}</span>
-    <div class="ml-auto flex gap-2">
+{#snippet milestoneRow(m: Milestone, actions: boolean)}
+  {@const progress = milestoneProgress(m.id)}
+  <div class="group list-row">
+    <input
+      type="checkbox"
+      class="checkbox"
+      checked={m.is_done}
+      onchange={() => toggleMilestone(m)}
+      aria-label="Mark {m.title} as reached"
+    />
+    <button type="button" class="min-w-0 flex-1 cursor-pointer text-left" onclick={() => openEditMilestone(m)}>
+      <p class="truncate text-sm {m.is_done ? 'text-faint line-through' : 'text-fg'}">{m.title}</p>
+      {#if m.description}
+        <p class="truncate text-xs text-faint">{m.description}</p>
+      {/if}
+    </button>
+    <div class="hidden w-32 shrink-0 items-center gap-2 md:flex">
+      {#if progress.total > 0}
+        <ProgressBar done={progress.done} total={progress.total} />
+        <span class="text-xs text-faint tabular-nums">{progress.done}/{progress.total}</span>
+      {/if}
+    </div>
+    <div class="w-24 shrink-0 text-right"><DeadlineLabel date={m.due_date} done={m.is_done} /></div>
+    {#if actions}
+      <div class="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+        <button type="button" class="icon-btn" aria-label="Add task to {m.title}" title="Add task" onclick={() => openNewTask(m.id)}>
+          <Icon name="plus" size={14} />
+        </button>
+        <button type="button" class="icon-btn" aria-label="Edit milestone" title="Edit" onclick={() => openEditMilestone(m)}>
+          <Icon name="edit" size={14} />
+        </button>
+        <button
+          type="button"
+          class="icon-btn icon-btn-danger"
+          aria-label="Delete milestone"
+          title="Delete"
+          onclick={() => (milestoneToDelete = m)}
+        >
+          <Icon name="trash" size={14} />
+        </button>
+      </div>
+    {/if}
+  </div>
+{/snippet}
+
+<PageHeader title={project?.name ?? ""}>
+  {#snippet leading()}
+    <a href="/projects" class="icon-btn -ml-1.5" aria-label="Back to Projects" title="Back to Projects">
+      <Icon name="back" size={18} />
+    </a>
+    {#if project}<ProjectDot color={project.color} size={10} />{/if}
+  {/snippet}
+  {#snippet meta()}
+    {#if project}
+      <p class="flex min-w-0 items-center gap-2 text-xs text-faint">
+        <span class="truncate">
+          {TYPE_LABELS[project.type]}{#if project.client_name}&nbsp;· {project.client_name}{/if}
+        </span>
+        <StatusBadge status={project.status} />
+        {#if project.deadline}
+          <span class="inline-flex shrink-0 items-center gap-1" title="Project deadline">
+            <Icon name="calendar" size={12} /><DeadlineLabel date={project.deadline} done={project.status === "completed"} />
+          </span>
+        {/if}
+      </p>
+    {/if}
+  {/snippet}
+  {#snippet actions()}
+    {#if project}
       {#if project.local_path}
         {@const path = project.local_path}
-        <button type="button" class="btn btn-ghost" title="Open {path} in Explorer (O)" onclick={() => openFolder(path)}>
-          <Icon name="folder" size={14} />Open folder
+        <button type="button" class="btn btn-ghost px-2 xl:px-3" title="Open {path} in Explorer (O)" onclick={() => openPath(openFolder, path)}>
+          <Icon name="folder" size={14} /><span class="hidden xl:inline">Open folder</span>
         </button>
-        <button type="button" class="btn btn-ghost" title="Open {path} in VS Code (V)" onclick={() => openInVsCode(path)}>
-          <Icon name="code" size={14} />VS Code
+        <button type="button" class="btn btn-ghost px-2 xl:px-3" title="Open {path} in VS Code (V)" onclick={() => openPath(openInVsCode, path)}>
+          <Icon name="code" size={14} /><span class="hidden xl:inline">VS Code</span>
         </button>
-        <span class="my-1 w-px bg-zinc-800"></span>
       {/if}
       <button
         type="button"
-        class="btn btn-ghost {project.pinned_at ? 'text-violet-400' : ''}"
-        title={project.pinned_at ? "Remove from the dashboard" : "Show on the dashboard"}
+        class="btn btn-ghost px-2 xl:px-3 {project.pinned_at ? 'text-accent-text' : ''}"
+        title={project.pinned_at ? "Remove from the Dashboard" : "Show on the Dashboard"}
+        aria-pressed={!!project.pinned_at}
         onclick={togglePinned}
       >
-        <Icon name="pin" size={14} />{project.pinned_at ? "Pinned" : "Pin"}
+        <Icon name="pin" size={14} /><span class="hidden xl:inline">{project.pinned_at ? "Pinned" : "Pin"}</span>
       </button>
-      <button type="button" class="btn btn-ghost" onclick={openProjectEdit}><Icon name="edit" size={14} />Edit</button>
-      <button type="button" class="btn btn-ghost hover:text-red-400" onclick={() => (confirmProjectDelete = true)}>
-        <Icon name="trash" size={14} />Delete
+      <button type="button" class="btn btn-secondary" title="Edit project (E)" onclick={openProjectEdit}>
+        <Icon name="edit" size={14} />Edit
       </button>
-    </div>
-  {/if}
-</div>
+    {/if}
+  {/snippet}
+</PageHeader>
 
 {#if project}
-  <div class="space-y-5 px-8 py-6">
+  <div class="page space-y-5 py-6">
     <Tabs
       options={[
         { value: "overview", label: "Overview" },
@@ -344,164 +491,152 @@
         { value: "milestones", label: "Milestones", count: milestones.length },
         { value: "info", label: "Info" },
       ]}
-      bind:value={tab}
+      value={tab}
+      onchange={setTab}
+      label="Project sections"
     />
 
     {#if tab === "overview"}
-      <!-- Project info -->
-      <section class="card p-5">
-        <div class="flex items-start justify-between gap-4">
-          <div class="min-w-0">
-            <h1 class="flex items-center gap-2.5 text-lg font-semibold text-zinc-100">
-              <ProjectDot color={project.color} size={10} />{project.name}
-            </h1>
-            <p class="text-sm text-zinc-500">
-              {TYPE_LABELS[project.type]}{#if project.client_name}&nbsp;· {project.client_name}{/if}
-            </p>
-          </div>
-          <StatusBadge status={project.status} />
-        </div>
-        {#if project.description}
-          <p class="mt-3 text-sm whitespace-pre-line text-zinc-400">{project.description}</p>
-        {/if}
-        <div class="mt-4 flex flex-wrap gap-x-6 gap-y-1 border-t border-zinc-800 pt-3 text-xs text-zinc-500">
-          <span>Deadline: <DeadlineLabel date={project.deadline} done={project.status === "completed"} /></span>
-          <span class="min-w-0 truncate">
-            Folder:
-            {#if project.local_path}
-              <span class="font-mono text-zinc-400">{project.local_path}</span>
-            {:else}
-              <button type="button" class="cursor-pointer text-violet-400 hover:text-violet-300" onclick={openProjectEdit}>
-                Set a folder
-              </button>
-            {/if}
-          </span>
-        </div>
-      </section>
-
-      <div class="grid gap-4 sm:grid-cols-3">
+      <div class="grid gap-3 sm:grid-cols-3">
         <div class="card px-4 py-3">
-          <p class="text-xs text-zinc-500">Progress</p>
-          <p class="mt-1 text-2xl font-semibold text-zinc-100 tabular-nums">
-            {doneTasks}<span class="text-base text-zinc-500">/{tasks.length}</span>
-            <span class="text-xs font-normal text-zinc-500">tasks done</span>
+          <p class="text-xs text-faint">Tasks done</p>
+          <p class="mt-1 text-2xl font-semibold text-strong tabular-nums">
+            {doneTasks}<span class="text-base font-normal text-faint">/{tasks.length}</span>
           </p>
-          <div class="mt-2 h-1 overflow-hidden rounded-full bg-zinc-800">
-            <div
-              class="h-full bg-violet-500"
-              style="width: {tasks.length ? (doneTasks / tasks.length) * 100 : 0}%"
-            ></div>
-          </div>
+          <div class="mt-2 flex"><ProgressBar done={doneTasks} total={tasks.length} color={project.color} /></div>
         </div>
         <div class="card px-4 py-3">
-          <p class="text-xs text-zinc-500">Milestones</p>
-          <p class="mt-1 text-2xl font-semibold text-zinc-100 tabular-nums">
-            {doneMilestones}<span class="text-base text-zinc-500">/{milestones.length}</span>
-            <span class="text-xs font-normal text-zinc-500">reached</span>
+          <p class="text-xs text-faint">Milestones reached</p>
+          <p class="mt-1 text-2xl font-semibold text-strong tabular-nums">
+            {doneMilestones}<span class="text-base font-normal text-faint">/{milestones.length}</span>
           </p>
+          <div class="mt-2 flex"><ProgressBar done={doneMilestones} total={milestones.length} /></div>
         </div>
         <div class="card min-w-0 px-4 py-3">
-          <p class="text-xs text-zinc-500">Next deadline</p>
+          <p class="text-xs text-faint">Next deadline</p>
           {#if nextDeadline}
-            <p class="mt-1 truncate text-sm font-medium text-zinc-100">{nextDeadline.title}</p>
+            <p class="mt-1 truncate text-sm font-medium text-strong">{nextDeadline.title}</p>
             <DeadlineLabel date={nextDeadline.date} />
           {:else}
-            <p class="mt-1 text-sm text-zinc-500">Nothing scheduled</p>
+            <p class="mt-1 text-sm text-faint">Nothing scheduled</p>
           {/if}
         </div>
       </div>
 
-      <section class="card">
-        <div class="border-b border-zinc-800 px-4 py-2">
-          <h2 class="text-xs font-semibold text-zinc-300">Up next</h2>
-        </div>
-        {#each upcoming.slice(0, 3) as u (u.kind + u.item.id)}
-          <div class="flex items-center gap-3 px-4 py-2 hover:bg-zinc-800/30">
-            <input
-              type="checkbox"
-              class="checkbox"
-              checked={false}
-              onchange={() => toggleUpcoming(u)}
-              aria-label="Mark {u.item.title} as done"
-            />
-            <span class="shrink-0 text-zinc-500" title={u.kind === "task" ? "Task" : "Milestone"}>
-              <Icon name={u.kind === "task" ? "tasks" : "flag"} size={14} />
-            </span>
-            <button
-              type="button"
-              class="min-w-0 flex-1 cursor-pointer truncate text-left text-sm text-zinc-200 hover:text-violet-300"
-              onclick={() => (tab = u.kind === "task" ? "tasks" : "milestones")}
-            >
-              {u.item.title}
-            </button>
-            <DeadlineLabel date={u.item.due_date} />
+      <div class="grid gap-5 lg:grid-cols-2">
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Up next</h2>
+            <button type="button" class="btn btn-ghost btn-sm" onclick={() => setTab("tasks")}>All tasks</button>
           </div>
+          <div class="divide-y divide-line">
+            {#each upcoming.slice(0, 5) as u (u.kind + u.item.id)}
+              <div class="list-row">
+                <input
+                  type="checkbox"
+                  class="checkbox"
+                  checked={false}
+                  onchange={() => completeUpcoming(u)}
+                  aria-label="Mark {u.item.title} as done"
+                />
+                <span class="text-faint" title={u.kind === "task" ? "Task" : "Milestone"}>
+                  <Icon name={u.kind === "task" ? "tasks" : "flag"} size={14} />
+                </span>
+                <button
+                  type="button"
+                  class="min-w-0 flex-1 cursor-pointer truncate text-left text-sm text-fg hover:text-accent-text-strong"
+                  onclick={() => (u.kind === "task" ? openEditTask(u.item) : openEditMilestone(u.item))}
+                >
+                  {u.item.title}
+                </button>
+                <DeadlineLabel date={u.item.due_date} />
+              </div>
+            {:else}
+              <EmptyState
+                compact
+                icon="calendar"
+                message="Nothing scheduled"
+                hint="Tasks and milestones with a due date show up here, nearest first."
+                action={{ label: "Add task", icon: "plus", onclick: () => openNewTask() }}
+              />
+            {/each}
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Milestones <span class="count">{doneMilestones}/{milestones.length}</span></h2>
+            <button type="button" class="btn btn-ghost btn-sm" onclick={() => setTab("milestones")}>All milestones</button>
+          </div>
+          <div class="divide-y divide-line">
+            {#each openMilestones.slice(0, 5) as m (m.id)}
+              {@render milestoneRow(m, false)}
+            {:else}
+              <EmptyState
+                compact
+                icon="flag"
+                message={milestones.length ? "Every milestone is reached" : "No milestones yet"}
+                hint={milestones.length ? undefined : "Split the project into steps, each with its own due date."}
+                action={{ label: "Add milestone", icon: "plus", onclick: openNewMilestone }}
+              />
+            {/each}
+          </div>
+        </section>
+      </div>
+
+      <section class="card px-4 py-3">
+        <h2 class="card-title mb-1.5">About</h2>
+        {#if project.description}
+          <p class="text-sm whitespace-pre-line text-fg">{project.description}</p>
         {:else}
-          <EmptyState message="No upcoming tasks or milestones with a due date." />
-        {/each}
+          <button type="button" class="link text-sm" onclick={openProjectEdit}>Add a description</button>
+        {/if}
+        <div class="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-t border-line pt-3 text-xs text-faint">
+          <span>Deadline: <DeadlineLabel date={project.deadline} done={project.status === "completed"} empty="none" /></span>
+          <span class="min-w-0 truncate">
+            Folder:
+            {#if project.local_path}
+              <span class="font-mono text-muted">{project.local_path}</span>
+            {:else}
+              <button type="button" class="link" onclick={openProjectEdit}>Set a folder</button>
+            {/if}
+          </span>
+        </div>
       </section>
     {:else if tab === "milestones"}
       <section class="card">
-        <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
-          <h2 class="text-xs font-semibold text-zinc-300">Milestones <span class="ml-1 text-zinc-500">{milestones.length}</span></h2>
-          <button type="button" class="btn btn-ghost px-2 py-1 text-xs" onclick={openNewMilestone}>
+        <div class="card-header">
+          <h2 class="card-title">Milestones <span class="count">{milestones.length}</span></h2>
+          <button type="button" class="btn btn-ghost btn-sm" onclick={openNewMilestone} title="New milestone (M)">
             <Icon name="plus" size={12} />Add milestone
           </button>
         </div>
-        {#each milestones as m (m.id)}
-          {@const progress = milestoneProgress(m.id)}
-          <div class="group flex items-center gap-3 px-4 py-2 hover:bg-zinc-800/30">
-            <input
-              type="checkbox"
-              class="checkbox"
-              checked={m.is_done}
-              onchange={() => toggleMilestone(m)}
-              aria-label="Mark {m.title} as done"
+        <div class="divide-y divide-line">
+          {#each milestones as m (m.id)}
+            {@render milestoneRow(m, true)}
+          {:else}
+            <EmptyState
+              icon="flag"
+              message="No milestones yet"
+              hint="Milestones split a project into steps, each with its own due date and tasks."
+              action={{ label: "Add milestone", icon: "plus", primary: true, onclick: openNewMilestone }}
             />
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm {m.is_done ? 'text-zinc-500 line-through' : 'text-zinc-200'}">{m.title}</p>
-              {#if m.description}
-                <p class="truncate text-xs text-zinc-500">{m.description}</p>
-              {/if}
-            </div>
-            <span class="w-16 shrink-0 text-xs text-zinc-500 tabular-nums">
-              {#if progress.total > 0}{progress.done}/{progress.total} tasks{/if}
-            </span>
-            <div class="w-28 shrink-0 text-right"><DeadlineLabel date={m.due_date} done={m.is_done} /></div>
-            <div class="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-              <button type="button" class="icon-btn" aria-label="Add task to milestone" onclick={() => openNewTask(m.id)}>
-                <Icon name="plus" size={14} />
-              </button>
-              <button type="button" class="icon-btn" aria-label="Edit milestone" onclick={() => openEditMilestone(m)}>
-                <Icon name="edit" size={14} />
-              </button>
-              <button
-                type="button"
-                class="icon-btn hover:text-red-400"
-                aria-label="Delete milestone"
-                onclick={() => (milestoneToDelete = m)}
-              >
-                <Icon name="trash" size={14} />
-              </button>
-            </div>
-          </div>
-        {:else}
-          <EmptyState message="No milestones yet." />
-        {/each}
+          {/each}
+        </div>
       </section>
-
     {:else if tab === "tasks"}
       <div class="flex flex-wrap items-center gap-3">
         <Tabs
           options={[
-            { value: "list", label: "List" },
-            { value: "board", label: "Board" },
+            { value: "list", label: "List", icon: "list" },
+            { value: "board", label: "Board", icon: "board" },
           ]}
           value={taskView}
           onchange={setTaskView}
+          label="Task view"
         />
         {#if milestones.length > 0}
-          <select class="input w-52 py-1 text-xs" bind:value={milestoneFilter} aria-label="Filter by milestone">
+          <select class="input input-sm w-52" bind:value={milestoneFilter} aria-label="Filter by milestone">
             <option value="all">All milestones</option>
             {#each milestones as m (m.id)}
               <option value={m.id}>{m.title}</option>
@@ -509,7 +644,7 @@
             <option value="none">No milestone</option>
           </select>
         {/if}
-        <button type="button" class="btn btn-ghost ml-auto px-2 py-1 text-xs" onclick={() => openNewTask()}>
+        <button type="button" class="btn btn-primary btn-sm ml-auto" onclick={() => openNewTask()} title="New task (N)">
           <Icon name="plus" size={12} />Add task
         </button>
       </div>
@@ -520,17 +655,37 @@
           onmove={moveTask}
           onedit={openEditTask}
           onadd={(status) => openNewTask(undefined, status)}
+          ondelete={removeTask}
         />
       {:else}
         <section class="card">
-          <h2 class="border-b border-zinc-800 px-4 py-2.5 text-xs font-semibold text-zinc-300">
-            Tasks <span class="ml-1 text-zinc-500">{visibleTasks.length}</span>
-          </h2>
-          {#each visibleTasks as task (task.id)}
-            <TaskRow {task} ontoggle={toggleTask} onedit={openEditTask} ondelete={removeTask} onplan={togglePlanned} />
-          {:else}
-            <EmptyState message={tasks.length === 0 ? "No tasks yet." : "No tasks in this milestone."} />
-          {/each}
+          <div class="card-header">
+            <h2 class="card-title">Tasks <span class="count">{visibleTasks.length}</span></h2>
+            {#if visibleTasks.length > 0}
+              <span class="text-xs text-faint tabular-nums">{visibleTasks.filter((t) => t.is_done).length} done</span>
+            {/if}
+          </div>
+          <div class="divide-y divide-line">
+            {#each visibleTasks as task (task.id)}
+              <div animate:flip={{ duration: ms(200) }}>
+                <TaskRow {task} ontoggle={toggleTask} onedit={openEditTask} ondelete={removeTask} onplan={togglePlanned} />
+              </div>
+            {:else}
+              {#if tasks.length === 0}
+                <EmptyState
+                  icon="tasks"
+                  message="No tasks yet"
+                  hint="Break the project into tasks you can check off."
+                  action={{ label: "Add your first task", icon: "plus", primary: true, onclick: () => openNewTask() }}
+                />
+              {:else}
+                <EmptyState
+                  message="No tasks in this milestone"
+                  action={{ label: "Show all tasks", onclick: () => (milestoneFilter = "all") }}
+                />
+              {/if}
+            {/each}
+          </div>
         </section>
       {/if}
     {:else}
@@ -542,45 +697,76 @@
     {/if}
   </div>
 {:else if loaded}
-  <EmptyState message="Project not found." />
+  <div class="page py-6">
+    <div class="card">
+      <EmptyState
+        icon="projects"
+        message="Project not found"
+        hint="It may have been deleted."
+        action={{ label: "Back to Projects", onclick: () => goto("/projects") }}
+      />
+    </div>
+  </div>
+{:else}
+  <div class="page py-6"><div class="card"><Skeleton /></div></div>
 {/if}
 
-<Modal open={projectFormOpen} title="Edit project" onclose={() => (projectFormOpen = false)} onsubmit={saveProject}>
-  <ProjectForm bind:values={projectDraft} {clients} />
+<Modal
+  open={projectFormOpen}
+  title="Edit project"
+  onclose={() => (projectFormOpen = false)}
+  onsubmit={saveProject}
+  ondelete={() => {
+    projectFormOpen = false;
+    confirmProjectDelete = true;
+  }}
+  deleteLabel="Delete project"
+>
+  <ProjectForm bind:values={projectDraft} bind:clients />
 </Modal>
 
 <Modal
   open={confirmProjectDelete}
-  title="Delete project"
-  submitLabel="Delete"
+  title="Delete project?"
+  submitLabel="Delete project"
   danger
   onclose={() => (confirmProjectDelete = false)}
   onsubmit={removeProject}
 >
-  <p class="text-sm text-zinc-300">
-    Delete <span class="font-medium text-zinc-100">{project?.name}</span> with all its milestones and tasks?
+  <p class="text-sm text-fg">
+    <span class="font-medium text-strong">{project?.name}</span> will be deleted with its
+    {milestones.length} milestone{milestones.length === 1 ? "" : "s"}, {tasks.length} task{tasks.length === 1 ? "" : "s"}, notes,
+    links and details.
   </p>
+  <p class="text-xs text-faint">This can't be undone, except by restoring a backup (Settings → Data and backup).</p>
 </Modal>
 
 <Modal
   open={milestoneFormOpen}
   title={editingMilestoneId === null ? "New milestone" : "Edit milestone"}
+  submitLabel={editingMilestoneId === null ? "Add milestone" : "Save"}
   onclose={() => (milestoneFormOpen = false)}
   onsubmit={saveMilestone}
+  ondelete={editingMilestoneId === null
+    ? undefined
+    : () => {
+        milestoneFormOpen = false;
+        milestoneToDelete = milestones.find((m) => m.id === editingMilestoneId) ?? null;
+      }}
 >
   <MilestoneForm bind:values={milestoneDraft} />
 </Modal>
 
 <Modal
   open={milestoneToDelete !== null}
-  title="Delete milestone"
-  submitLabel="Delete"
+  title="Delete milestone?"
+  submitLabel="Delete milestone"
   danger
   onclose={() => (milestoneToDelete = null)}
   onsubmit={removeMilestone}
 >
-  <p class="text-sm text-zinc-300">
-    Delete <span class="font-medium text-zinc-100">{milestoneToDelete?.title}</span>? Its tasks are kept but
+  <p class="text-sm text-fg">
+    Delete <span class="font-medium text-strong">{milestoneToDelete?.title}</span>? Its tasks are kept but
     unlinked from the milestone.
   </p>
 </Modal>
@@ -588,8 +774,10 @@
 <Modal
   open={taskFormOpen}
   title={editingTaskId === null ? "New task" : "Edit task"}
+  submitLabel={editingTaskId === null ? "Add task" : "Save"}
   onclose={() => (taskFormOpen = false)}
   onsubmit={saveTask}
+  ondelete={editingTaskId === null ? undefined : deleteEditingTask}
 >
   <TaskForm bind:values={taskDraft} {milestones} />
 </Modal>

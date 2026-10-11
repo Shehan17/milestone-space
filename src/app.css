@@ -1,154 +1,334 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-}
-
 /*
- * Color themes (picked on the Settings page, see src/lib/theme.ts).
- * Components only use zinc (neutrals) and violet (accent) plus a few status colors, so each theme
- * just redefines those palette variables. "zinc-950" means "page background" and "zinc-100"
- * means "strongest text" in every theme; light themes run the scale the other way round.
- * The palettes are deliberately soft: dark themes avoid pure black and pure white text,
- * light themes avoid pure white surfaces.
- * color-scheme makes native date pickers, selects and scrollbars match.
+ * MilestoneSpace design system.
+ *
+ * Colors are semantic tokens. Each color theme (Settings page, src/lib/theme.ts) defines them as
+ * plain CSS variables below, and @theme inline turns them into Tailwind colors: bg-canvas,
+ * text-muted, border-line, bg-accent, text-danger... Components use only these tokens, so every
+ * theme recolors the whole app. theme.ts can override the four --accent* variables inline on
+ * <html> (the accent color picked in Settings).
+ *
+ *   Surfaces  canvas (page) · sidebar · surface (cards) · raised (dialogs, board cards, toasts)
+ *             field (inputs) · hover (row and button hover) · selected (current nav item, tab)
+ *   Lines     line (borders, dividers) · line-strong (hover borders, switches, kbd)
+ *   Text      strong (titles) · fg (content) · muted (secondary) · faint (dates, counts, hints)
+ *             Every text token passes WCAG AA (4.5:1) on every surface, in every theme.
+ *   Accent    accent (buttons, fills, focus ring) · accent-hover · accent-text (links, icons)
+ *             · accent-text-strong (text on accent tints)
+ *   Status    danger (overdue, high priority, delete) · danger-solid (delete button)
+ *             · warning (due within 3 days) · success. Red and orange mean late or urgent, nothing else.
+ *
+ * Sizes: text-2xs (11px, uppercase labels and badges), text-xs (12px, meta), text-sm (14px, body),
+ * text-base (16px, page titles). Radius: rounded-control (buttons, inputs), rounded-card, rounded-dialog.
+ * Spacing is the Tailwind scale; the Spacing setting changes --spacing (theme.ts).
+ * Shared classes for buttons, inputs, cards, rows and labels are in @layer components below.
  */
 
-/* Midnight (default): soft charcoal with a violet accent. On :root so it also applies with no theme set. */
+/* Midnight (default): near-black with an indigo accent. On :root so it also applies with no theme set. */
 :root {
   color-scheme: dark;
-  --color-zinc-100: #e4e4e9;
-  --color-zinc-200: #d4d4da;
-  --color-zinc-300: #bdbdc5;
-  --color-zinc-400: #9c9ca6;
-  --color-zinc-500: #7c7c87;
-  --color-zinc-600: #5a5a64;
-  --color-zinc-700: #41414a;
-  --color-zinc-800: #2f2f36;
-  --color-zinc-900: #222228;
-  --color-zinc-950: #18181c;
-  --color-violet-300: #c4b8f5;
-  --color-violet-400: #a993f0;
-  --color-violet-500: #8f73e6;
-  --color-violet-600: #7458d0;
+  --canvas: #0f0f12;
+  --sidebar: #131316;
+  --surface: #16161a;
+  --raised: #1c1c21;
+  --field: #111115;
+  --hover: #1f1f25;
+  --selected: #26262d;
+  --line: #26262d;
+  --line-strong: #36363f;
+  --strong: #f2f2f5;
+  --fg: #d8d8de;
+  --muted: #a8a8b3;
+  --faint: #8b8b96;
+  --accent: #5560d8;
+  --accent-hover: #6a74e6;
+  --accent-text: #a0a8f5;
+  --accent-text-strong: #c3c8fa;
+  --danger: #f87171;
+  --danger-solid: #dc2626;
+  --warning: #fb923c;
+  --success: #34d399;
+  --scrim: rgb(0 0 0 / 0.62);
+  --overlay-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.7), 0 2px 8px rgb(0 0 0 / 0.35);
 }
 
-/* Deep Ocean: muted blue slate with a soft sky-blue accent. */
+/* Deep Ocean: muted blue slate with a sky-blue accent. */
 :root[data-theme="ocean"] {
-  --color-zinc-100: #dfe5ec;
-  --color-zinc-200: #cdd5df;
-  --color-zinc-300: #b4bfcc;
-  --color-zinc-400: #93a1b2;
-  --color-zinc-500: #728196;
-  --color-zinc-600: #526075;
-  --color-zinc-700: #3a475a;
-  --color-zinc-800: #2a3546;
-  --color-zinc-900: #1e2836;
-  --color-zinc-950: #161e2a;
-  --color-violet-300: #a3d4ee;
-  --color-violet-400: #74bde3;
-  --color-violet-500: #4ea3d2;
-  --color-violet-600: #2f80b2;
+  --canvas: #141b26;
+  --sidebar: #17202c;
+  --surface: #1a2330;
+  --raised: #1e2836;
+  --field: #121925;
+  --hover: #222c3b;
+  --selected: #2a3546;
+  --line: #2a3546;
+  --line-strong: #3a475a;
+  --strong: #e6ebf1;
+  --fg: #cdd5df;
+  --muted: #a3afbf;
+  --faint: #8593a7;
+  --accent: #2a74a3;
+  --accent-hover: #3a8cc0;
+  --accent-text: #74bde3;
+  --accent-text-strong: #a3d4ee;
 }
 
-/* Light themes share darker, slightly muted status colors so they stay readable without glaring. */
+/* Light themes: soft surfaces (no pure white), darker status colors so they stay readable. */
 :root[data-theme="light"],
 :root[data-theme="sand"] {
   color-scheme: light;
-  --color-red-200: #8f2a2a;
-  --color-red-300: #a83232;
-  --color-red-400: #c53b3b;
-  --color-red-950: #f1dcdc;
-  --color-orange-400: #cc5a1a;
-  --color-amber-300: #9a5a10;
-  --color-amber-400: #c27c12;
-  --color-emerald-300: #1f6b52;
-  --color-emerald-400: #2b8466;
+  --scrim: rgb(24 24 32 / 0.35);
+  --overlay-shadow: 0 16px 40px -12px rgb(30 30 40 / 0.28), 0 2px 8px rgb(30 30 40 / 0.1);
+  --success: #1f6b52;
 }
 
 /* Daylight: soft gray with a violet accent. */
 :root[data-theme="light"] {
-  --color-zinc-100: #202026;
-  --color-zinc-200: #2c2c33;
-  --color-zinc-300: #3d3d45;
-  --color-zinc-400: #54545d;
-  --color-zinc-500: #6c6c76;
-  --color-zinc-600: #95959f;
-  --color-zinc-700: #c0c0c8;
-  --color-zinc-800: #d3d3da;
-  --color-zinc-900: #ececf0;
-  --color-zinc-950: #e2e2e7;
-  --color-violet-300: #5b3fb0;
-  --color-violet-400: #6849c4;
-  --color-violet-500: #7a5ad6;
-  --color-violet-600: #6849c4;
+  --canvas: #e4e4e9;
+  --sidebar: #dcdce2;
+  --surface: #eeeef2;
+  --raised: #f4f4f7;
+  --field: #f7f7f9;
+  --hover: #e2e2e8;
+  --selected: #d9d9e0;
+  --line: #d2d2d9;
+  --line-strong: #bdbdc6;
+  --strong: #1c1c22;
+  --fg: #2c2c33;
+  --muted: #4c4c55;
+  --faint: #5e5e68;
+  --accent: #6849c4;
+  --accent-hover: #7a5ad6;
+  --accent-text: #6849c4;
+  --accent-text-strong: #5b3fb0;
+  --danger: #b02e2e;
+  --danger-solid: #c53b3b;
+  --warning: #a3420e;
 }
 
 /* Sand: warm paper tones with a teal accent. */
 :root[data-theme="sand"] {
-  --color-zinc-100: #24201b;
-  --color-zinc-200: #322c26;
-  --color-zinc-300: #433c35;
-  --color-zinc-400: #5a5249;
-  --color-zinc-500: #746b60;
-  --color-zinc-600: #9d9386;
-  --color-zinc-700: #c7bdae;
-  --color-zinc-800: #d8cfc2;
-  --color-zinc-900: #efe9df;
-  --color-zinc-950: #e6dfd3;
-  --color-violet-300: #15524c;
-  --color-violet-400: #1a655e;
-  --color-violet-500: #227a71;
-  --color-violet-600: #1a655e;
+  --canvas: #e6dfd3;
+  --sidebar: #ddd5c8;
+  --surface: #efe9df;
+  --raised: #f4efe7;
+  --field: #f8f4ee;
+  --hover: #e5ddd1;
+  --selected: #d8cfc2;
+  --line: #d3c9bb;
+  --line-strong: #c0b5a5;
+  --strong: #24201b;
+  --fg: #322c26;
+  --muted: #4f4840;
+  --faint: #5f574d;
+  --accent: #1a655e;
+  --accent-hover: #227a71;
+  --accent-text: #1a655e;
+  --accent-text-strong: #15524c;
+  --danger: #a82c2c;
+  --danger-solid: #b83535;
+  --warning: #9a3f0d;
 }
 
-body {
-  @apply bg-zinc-950 text-sm text-zinc-300 antialiased;
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-sidebar: var(--sidebar);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-field: var(--field);
+  --color-hover: var(--hover);
+  --color-selected: var(--selected);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-strong: var(--strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-accent-text-strong: var(--accent-text-strong);
+  --color-danger: var(--danger);
+  --color-danger-solid: var(--danger-solid);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+}
+
+@theme {
+  /* Segoe UI Variable on Windows 11; no web font to load. */
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  --radius-control: 0.375rem;
+  --radius-card: 0.5rem;
+  --radius-dialog: 0.75rem;
+
+  --animate-appear: appear 150ms ease-out 150ms both;
+
+  @keyframes appear {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+@layer base {
+  html {
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  body {
+    @apply bg-canvas text-sm text-fg antialiased;
+  }
+  /* One focus ring for every button, link and control used from the keyboard. Inputs draw their own. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  ::selection {
+    background-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
 }
 
 @layer components {
-  .input {
-    @apply w-full rounded-md border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/40 focus:outline-none;
+  /* Page width and side padding, shared by page headers and page content. */
+  .page {
+    @apply mx-auto w-full max-w-5xl px-5 lg:px-8;
   }
+
   .btn {
-    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-control px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-sm {
+    @apply gap-1 px-2 py-1 text-xs;
   }
   .btn-primary {
-    @apply bg-violet-600 text-white hover:bg-violet-500;
+    @apply bg-accent text-white hover:bg-accent-hover disabled:hover:bg-accent;
+  }
+  .btn-secondary {
+    @apply border border-line text-fg hover:border-line-strong hover:bg-hover hover:text-strong;
   }
   .btn-ghost {
-    @apply text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100;
+    @apply text-muted hover:bg-hover hover:text-strong;
   }
   .btn-danger {
-    @apply bg-red-600 text-white hover:bg-red-500;
+    @apply bg-danger-solid text-white hover:brightness-110;
   }
+  .btn-danger-ghost {
+    @apply text-danger hover:bg-danger/10;
+  }
+
   .icon-btn {
-    @apply cursor-pointer rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200;
+    @apply inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control p-1 text-faint transition-colors duration-150 hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-40;
   }
-  .card {
-    @apply rounded-lg border border-zinc-800 bg-zinc-900/50;
+  .icon-btn-danger {
+    @apply hover:bg-danger/10 hover:text-danger;
   }
+
+  .input {
+    @apply w-full rounded-control border border-line bg-field px-2.5 py-1.5 text-sm text-strong transition-colors duration-150 placeholder:text-faint hover:border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/25 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .input-sm {
+    @apply py-1 text-xs;
+  }
+  /* A field with an error (Field.svelte, after the first Save). */
+  [data-show-error] .input {
+    @apply border-danger focus:border-danger focus:ring-danger/25;
+  }
+  .field-error {
+    @apply mt-1 flex items-center gap-1 text-xs text-danger;
+  }
+
   .checkbox {
-    @apply size-4 shrink-0 cursor-pointer accent-violet-500;
+    @apply size-4 shrink-0 cursor-pointer accent-accent disabled:cursor-not-allowed;
+  }
+  /* On/off switch: a checkbox drawn as a switch (Settings). */
+  .switch {
+    @apply relative h-4.5 w-8 shrink-0 cursor-pointer appearance-none rounded-full bg-line-strong transition-colors duration-150 checked:bg-accent disabled:cursor-not-allowed disabled:opacity-50;
+    &::before {
+      @apply absolute top-0.5 left-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform duration-150 content-[''];
+    }
+    &:checked::before {
+      @apply translate-x-3.5;
+    }
+  }
+  /* Small toggle buttons, e.g. the date shortcuts under a date field. */
+  .chip {
+    @apply cursor-pointer rounded-full border border-line px-2 py-0.5 text-xs text-muted transition-colors duration-150 hover:border-line-strong hover:bg-hover hover:text-strong;
+  }
+  .chip-on {
+    @apply border-accent/60 bg-accent/15 text-accent-text-strong;
+  }
+
+  .card {
+    @apply rounded-card border border-line bg-surface;
+  }
+  /* The title bar of a card: the same height with or without a button in it. */
+  .card-header {
+    @apply flex min-h-10 items-center justify-between gap-3 border-b border-line px-4 py-1.5;
+  }
+  .card-title {
+    @apply flex min-w-0 items-center gap-1.5 text-xs font-semibold text-fg;
+  }
+  .count {
+    @apply font-normal text-faint tabular-nums;
+  }
+  .list-row {
+    @apply flex items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-hover;
+  }
+
+  /* Small uppercase group label ("DUE SOON", "DARK"). */
+  .eyebrow {
+    @apply text-2xs font-semibold tracking-wider text-faint uppercase;
+  }
+  .kbd {
+    @apply inline-flex min-w-5 items-center justify-center rounded border border-line-strong bg-hover px-1.5 py-px font-sans text-2xs font-medium text-muted;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap;
+  }
+  .link {
+    @apply cursor-pointer text-accent-text underline-offset-2 hover:underline;
+  }
+  .shadow-overlay {
+    box-shadow: var(--overlay-shadow);
+  }
+  /* Loading placeholder bars. They fade in after 150 ms, so fast loads show nothing at all. */
+  .skeleton {
+    @apply animate-appear rounded bg-hover;
   }
 }
 
 /* Rendered markdown (project notes preview). Preflight strips list/heading styles, so restore them. */
 .markdown {
-  @apply text-sm leading-relaxed text-zinc-300;
+  @apply text-sm leading-relaxed text-fg;
 
   & > * + * {
     @apply mt-3;
   }
   & h1 {
-    @apply text-lg font-semibold text-zinc-100;
+    @apply text-lg font-semibold text-strong;
   }
   & h2 {
-    @apply text-base font-semibold text-zinc-100;
+    @apply text-base font-semibold text-strong;
   }
   & h3,
   & h4 {
-    @apply text-sm font-semibold text-zinc-100;
+    @apply text-sm font-semibold text-strong;
   }
   & ul {
     @apply list-disc pl-5;
@@ -160,34 +340,34 @@ body {
     @apply mt-1;
   }
   & a {
-    @apply cursor-pointer text-violet-400 underline underline-offset-2 hover:text-violet-300;
+    @apply cursor-pointer text-accent-text underline underline-offset-2 hover:text-accent-text-strong;
   }
   & strong {
-    @apply font-semibold text-zinc-100;
+    @apply font-semibold text-strong;
   }
   & code {
-    @apply rounded bg-zinc-800 px-1 py-0.5 font-mono text-xs text-zinc-200;
+    @apply rounded bg-hover px-1 py-0.5 font-mono text-xs text-fg;
   }
   & pre {
-    @apply overflow-x-auto rounded-md border border-zinc-800 bg-zinc-950 p-3;
+    @apply overflow-x-auto rounded-control border border-line bg-field p-3;
   }
   & pre code {
     @apply bg-transparent p-0;
   }
   & blockquote {
-    @apply border-l-2 border-violet-500/60 pl-3 text-zinc-400;
+    @apply border-l-2 border-accent/60 pl-3 text-muted;
   }
   & hr {
-    @apply border-zinc-800;
+    @apply border-line;
   }
   & table {
     @apply border-collapse text-xs;
   }
   & th,
   & td {
-    @apply border border-zinc-800 px-2 py-1 text-left;
+    @apply border border-line px-2 py-1 text-left;
   }
   & input[type="checkbox"] {
-    @apply mr-1.5 accent-violet-500;
+    @apply mr-1.5 accent-accent;
   }
 }

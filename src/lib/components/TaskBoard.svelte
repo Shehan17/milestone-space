@@ -1,7 +1,7 @@
 <!--
   Kanban board: To do / In progress / Done columns with drag and drop (native HTML5 drag events;
   tauri.conf.json sets dragDropEnabled: false so WebView2 delivers them).
-  Keyboard: focus a card, ←/→ moves it to the previous/next column, Enter edits it.
+  Keyboard: focus a card, ←/→ moves it to the previous/next column, Enter edits it, Delete deletes it.
 -->
 <script lang="ts">
   import { tick } from "svelte";
@@ -18,14 +18,15 @@
     onmove: (task: Task, status: TaskStatus, orderedIds: number[]) => void | Promise<void>;
     onedit: (task: Task) => void;
     onadd: (status: TaskStatus) => void;
+    ondelete: (task: Task) => void | Promise<void>;
   }
 
-  let { tasks, onmove, onedit, onadd }: Props = $props();
+  let { tasks, onmove, onedit, onadd, ondelete }: Props = $props();
 
   const dotClass: Record<TaskStatus, string> = {
-    todo: "bg-zinc-500",
-    in_progress: "bg-violet-400",
-    done: "bg-emerald-400",
+    todo: "bg-faint",
+    in_progress: "bg-accent",
+    done: "bg-success",
   };
 
   /** Board order first (manual), then the oldest first. */
@@ -102,6 +103,17 @@
   // ----- Keyboard -----
   async function oncardkeydown(event: KeyboardEvent, task: Task) {
     const key = plainKey(event);
+    if (key === "Delete") {
+      event.preventDefault();
+      // Keep the keyboard on the board: focus the next card in the column (or the previous one).
+      const column = columns.find((c) => c.status === task.status)!.tasks;
+      const i = column.findIndex((t) => t.id === task.id);
+      const neighbour = column[i + 1] ?? column[i - 1];
+      await ondelete(task);
+      await tick();
+      if (neighbour) document.querySelector<HTMLElement>(`[data-card-id="${neighbour.id}"]`)?.focus();
+      return;
+    }
     if (key !== "ArrowLeft" && key !== "ArrowRight") return;
     const next = TASK_STATUSES[TASK_STATUSES.indexOf(task.status) + (key === "ArrowLeft" ? -1 : 1)];
     if (!next) return;
@@ -113,23 +125,23 @@
   }
 </script>
 
-<div class="grid gap-4 md:grid-cols-3">
+<div class="grid gap-3 md:grid-cols-3">
   {#each columns as column (column.status)}
     {@const isTarget = dropTarget?.status === column.status}
     {@const others = column.tasks.filter((t) => t.id !== dragging?.id)}
     <section
-      class="flex min-h-40 flex-col rounded-lg border bg-zinc-900/40 transition-colors {isTarget
-        ? 'border-violet-500/50 bg-violet-500/5'
-        : 'border-zinc-800'}"
+      class="flex min-h-40 flex-col rounded-card border transition-colors duration-150 {isTarget
+        ? 'border-accent/60 bg-accent/5'
+        : 'border-line bg-surface'}"
       aria-label={TASK_STATUS_LABELS[column.status]}
       ondragover={(e) => ondragover(e, column.status)}
       {ondragleave}
       {ondrop}
     >
-      <header class="flex items-center gap-2 px-3 py-2">
+      <header class="flex items-center gap-2 py-2 pr-2 pl-3">
         <span class="size-2 rounded-full {dotClass[column.status]}"></span>
-        <h3 class="text-xs font-semibold text-zinc-300">{TASK_STATUS_LABELS[column.status]}</h3>
-        <span class="text-xs text-zinc-500 tabular-nums">{column.tasks.length}</span>
+        <h3 class="text-xs font-semibold text-fg">{TASK_STATUS_LABELS[column.status]}</h3>
+        <span class="count text-xs">{column.tasks.length}</span>
         <button
           type="button"
           class="icon-btn ml-auto"
@@ -144,43 +156,52 @@
       <div class="flex flex-1 flex-col gap-2 px-2 pb-2">
         {#each column.tasks as task (task.id)}
           {#if isTarget && others[dropTarget!.index]?.id === task.id}
-            <div class="h-0.5 rounded-full bg-violet-500"></div>
+            <div class="h-0.5 rounded-full bg-accent"></div>
           {/if}
           <button
             type="button"
             draggable="true"
             data-card-id={task.id}
-            class="cursor-grab rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-left transition-colors hover:border-zinc-700 focus-visible:border-violet-500 focus-visible:outline-none active:cursor-grabbing {dragging?.id ===
+            class="cursor-grab rounded-control border border-line bg-raised px-3 py-2 text-left transition-colors duration-150 hover:border-line-strong active:cursor-grabbing {dragging?.id ===
             task.id
               ? 'opacity-40'
               : ''}"
+            title="Drag to move · ←/→ change column · Enter edit · Delete delete"
             ondragstart={(e) => ondragstart(e, task)}
             {ondragend}
             onclick={() => onedit(task)}
             onkeydown={(e) => oncardkeydown(e, task)}
           >
-            <p class="text-sm break-words {task.status === 'done' ? 'text-zinc-500 line-through' : 'text-zinc-200'}">
+            <p class="text-sm break-words {task.status === 'done' ? 'text-faint line-through' : 'text-fg'}">
               {task.title}
             </p>
-            <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <PriorityBadge priority={task.priority} />
-              {#if task.due_date}<DeadlineLabel date={task.due_date} done={task.status === "done"} />{/if}
-              {#if task.milestone_title}
-                <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-zinc-500">
-                  <Icon name="flag" size={11} />{task.milestone_title}
-                </span>
-              {/if}
-              {#if task.planned_for === today}
-                <span class="text-violet-400" title="On today's list"><Icon name="sun" size={12} /></span>
-              {/if}
-            </div>
+            {#if task.priority !== "medium" || task.due_date || task.milestone_title || task.planned_for === today}
+              <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <PriorityBadge priority={task.priority} />
+                {#if task.due_date}<DeadlineLabel date={task.due_date} done={task.status === "done"} />{/if}
+                {#if task.milestone_title}
+                  <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-faint">
+                    <Icon name="flag" size={11} />{task.milestone_title}
+                  </span>
+                {/if}
+                {#if task.planned_for === today}
+                  <span class="text-accent-text" title="On today's list"><Icon name="sun" size={12} /></span>
+                {/if}
+              </div>
+            {/if}
           </button>
         {/each}
         {#if isTarget && dropTarget!.index >= others.length}
-          <div class="h-0.5 rounded-full bg-violet-500"></div>
+          <div class="h-0.5 rounded-full bg-accent"></div>
         {/if}
         {#if column.tasks.length === 0 && !isTarget}
-          <p class="px-2 py-6 text-center text-xs text-zinc-600">Drop tasks here</p>
+          <button
+            type="button"
+            class="flex flex-1 cursor-pointer items-center justify-center rounded-control border border-dashed border-line px-2 py-6 text-xs text-faint transition-colors duration-150 hover:border-line-strong hover:text-fg"
+            onclick={() => onadd(column.status)}
+          >
+            Drop a task here or add one
+          </button>
         {/if}
       </div>
     </section>

@@ -6,16 +6,18 @@
     moveProjectDetail,
     updateProjectDetail,
   } from "$lib/db";
+  import { toast } from "$lib/toast.svelte";
   import type { ProjectDetail } from "$lib/types";
-  import EmptyState from "./EmptyState.svelte";
   import Icon from "./Icon.svelte";
 
   let { projectId }: { projectId: number } = $props();
 
   let details = $state<ProjectDetail[]>([]);
+  let loaded = $state(false);
 
   async function load() {
     details = await getProjectDetails(projectId);
+    loaded = true;
   }
 
   $effect(() => {
@@ -49,11 +51,16 @@
     if (text.trim() === detail[field]) return;
     await updateProjectDetail(detail.id, field, text);
     await load();
+    toast.success("Saved", { duration: 1500 });
   }
 
   async function remove(detail: ProjectDetail) {
-    await deleteProjectDetail(detail.id);
+    const undo = await deleteProjectDetail(detail.id);
     await load();
+    toast.undo(`“${detail.label}” deleted`, async () => {
+      await undo();
+      await load();
+    });
   }
 
   async function move(detail: ProjectDetail, direction: -1 | 1) {
@@ -77,19 +84,20 @@
   }
 
   const fieldClass =
-    "rounded border border-transparent bg-transparent px-1.5 py-1 text-sm hover:border-zinc-800 focus:border-violet-500 focus:bg-zinc-950 focus:outline-none";
+    "rounded-control border border-transparent bg-transparent px-1.5 py-1 text-sm transition-colors duration-150 hover:border-line focus:border-accent focus:bg-field focus:outline-none";
 </script>
 
 <section class="card min-w-0">
-  <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
-    <h2 class="text-xs font-semibold text-zinc-300">Details <span class="ml-1 text-zinc-500">{details.length}</span></h2>
+  <div class="card-header">
+    <h2 class="card-title">Details <span class="count">{details.length}</span></h2>
   </div>
   {#each details as detail, i (detail.id)}
-    <div class="group flex items-center gap-2 px-2.5 py-1 hover:bg-zinc-800/30">
+    <div class="group flex items-center gap-2 px-2.5 py-1 transition-colors duration-150 hover:bg-hover">
       <input
-        class="{fieldClass} w-32 shrink-0 text-zinc-500"
+        class="{fieldClass} w-32 shrink-0 text-muted"
         value={detail.label}
         aria-label="Label"
+        title="Click to edit"
         onkeydown={blurOnEnter}
         onblur={(e) => {
           // An emptied label restores the old one rather than saving a blank row.
@@ -98,16 +106,17 @@
         }}
       />
       <input
-        class="{fieldClass} min-w-0 flex-1 text-zinc-200"
+        class="{fieldClass} min-w-0 flex-1 text-fg"
         value={detail.value}
         placeholder="Empty"
         aria-label="{detail.label} value"
+        title="Click to edit"
         onkeydown={blurOnEnter}
         onblur={(e) => saveField(detail, "value", e.currentTarget.value)}
       />
       <button
         type="button"
-        class="icon-btn shrink-0 {copiedId === detail.id ? 'text-emerald-400' : ''}"
+        class="icon-btn {copiedId === detail.id ? 'text-accent-text' : ''}"
         aria-label="Copy value"
         title={copiedId === detail.id ? "Copied" : "Copy value"}
         onclick={() => copy(detail)}
@@ -127,18 +136,22 @@
         >
           <Icon name="down" size={14} />
         </button>
-        <button type="button" class="icon-btn hover:text-red-400" aria-label="Delete detail" onclick={() => remove(detail)}>
+        <button type="button" class="icon-btn icon-btn-danger" aria-label="Delete detail" onclick={() => remove(detail)}>
           <Icon name="trash" size={14} />
         </button>
       </div>
     </div>
   {:else}
-    <EmptyState message="No details yet. Add things like tech stack, version, or IDs." />
+    {#if loaded}
+      <p class="px-4 pt-4 pb-1 text-xs text-faint">
+        No details yet. Add things you look up often: tech stack, version, account IDs, contact person.
+      </p>
+    {/if}
   {/each}
-  <form class="flex items-center gap-2 border-t border-zinc-800 px-4 py-2.5" onsubmit={add}>
-    <input class="input w-32 shrink-0" placeholder="Label" bind:value={newLabel} bind:this={labelInput} />
-    <input class="input min-w-0 flex-1" placeholder="Value" bind:value={newValue} />
-    <button type="submit" class="btn btn-ghost px-2 py-1 text-xs" disabled={!newLabel.trim()}>
+  <form class="flex items-center gap-2 border-t border-line px-4 py-2.5 {details.length === 0 ? 'mt-3' : ''}" onsubmit={add}>
+    <input class="input input-sm w-32 shrink-0" placeholder="Label" aria-label="New detail label" bind:value={newLabel} bind:this={labelInput} />
+    <input class="input input-sm min-w-0 flex-1" placeholder="Value" aria-label="New detail value" bind:value={newValue} />
+    <button type="submit" class="btn btn-secondary btn-sm" disabled={!newLabel.trim()}>
       <Icon name="plus" size={12} />Add
     </button>
   </form>

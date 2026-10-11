@@ -18,6 +18,7 @@
   import { formatDateTime } from "$lib/dates";
   import { settings, type AutoBackup } from "$lib/settings.svelte";
   import { openFolder } from "$lib/system";
+  import { toast } from "$lib/toast.svelte";
   import SettingRow from "./SettingRow.svelte";
 
   let paths = $state<AppPaths | null>(null);
@@ -27,17 +28,15 @@
     paths = await appPaths();
   });
 
-  /** Result of the last action, shown under the buttons. */
-  let message = $state<{ text: string; error?: boolean; folder?: string } | null>(null);
   let busy = $state(false);
 
-  async function run(action: () => Promise<void>) {
+  /** Runs one action at a time; a failure becomes an error message. */
+  async function run(failure: string, action: () => Promise<void>) {
     busy = true;
-    message = null;
     try {
       await action();
     } catch (e) {
-      message = { text: String(e), error: true };
+      toast.error(failure, e);
     } finally {
       busy = false;
     }
@@ -46,11 +45,17 @@
   const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
   const parentFolder = (path: string) => path.slice(0, Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/")));
 
+  /** "Saved as …" with a button that shows the file in Explorer. */
+  function savedToast(message: string, path: string) {
+    const dir = parentFolder(path);
+    toast.success(message, { detail: fileName(path), action: { label: "Show", run: () => openFolder(dir) } });
+  }
+
   const backup = () =>
-    run(async () => {
+    run("The backup didn't work", async () => {
       const path = await backupNow();
       autoBackupStatus.error = null;
-      message = { text: `Backup saved: ${fileName(path)}`, folder: parentFolder(path) };
+      savedToast("Backup saved", path);
     });
 
   async function chooseFolder() {
@@ -59,9 +64,9 @@
   }
 
   const exportWith = (action: () => Promise<string | null>) =>
-    run(async () => {
+    run("The export didn't work", async () => {
       const path = await action();
-      if (path) message = { text: `Exported to ${fileName(path)}`, folder: parentFolder(path) };
+      if (path) savedToast("Exported", path);
     });
 
   // ----- Restore -----
@@ -83,7 +88,7 @@
       await restoreBackup(path);
     } catch (e) {
       restorePath = null;
-      message = { text: String(e), error: true };
+      toast.error("The restore didn't work. Your data wasn't changed.", e);
       return;
     }
     // Every page reloads its data from the restored database.
@@ -108,7 +113,7 @@
 </SettingRow>
 
 <SettingRow label="Automatic backup" description="Made while MilestoneSpace is running (also from the tray).">
-  <Tabs options={backupOptions} bind:value={settings.auto_backup} />
+  <Tabs options={backupOptions} bind:value={settings.auto_backup} label="Automatic backup" />
 </SettingRow>
 
 <SettingRow
@@ -117,30 +122,28 @@
 >
   {#snippet below()}
     <div class="flex items-center gap-2">
-      <p class="input min-w-0 flex-1 truncate py-1 text-xs text-zinc-400" title={folder}>{folder}</p>
-      <button type="button" class="btn btn-ghost shrink-0 border border-zinc-800 px-2.5 py-1 text-xs" onclick={chooseFolder}>
-        Change…
-      </button>
+      <p class="input input-sm min-w-0 flex-1 truncate text-muted" title={folder}>{folder}</p>
+      <button type="button" class="btn btn-secondary btn-sm shrink-0" onclick={chooseFolder}>Change…</button>
       {#if settings.backup_folder}
-        <button type="button" class="btn btn-ghost shrink-0 px-2.5 py-1 text-xs" onclick={() => (settings.backup_folder = null)}>
+        <button type="button" class="btn btn-ghost btn-sm shrink-0" onclick={() => (settings.backup_folder = null)}>
           Use default
         </button>
       {/if}
       <button
         type="button"
-        class="icon-btn shrink-0"
+        class="icon-btn"
         title="Open the folder"
         aria-label="Open the backup folder"
-        onclick={() => run(() => openFolder(folder))}
+        onclick={() => run("Couldn't open the folder", () => openFolder(folder))}
       >
         <Icon name="folder" size={14} />
       </button>
     </div>
     {#if autoBackupStatus.error}
-      <p class="mt-2 text-xs text-red-400">The last automatic backup failed: {autoBackupStatus.error}</p>
+      <p class="field-error" role="alert"><Icon name="alert" size={12} />The last automatic backup failed: {autoBackupStatus.error}</p>
     {/if}
   {/snippet}
-  <select class="input w-36 py-1 text-xs" bind:value={settings.backup_keep} aria-label="Backups to keep">
+  <select class="input input-sm w-36" bind:value={settings.backup_keep} aria-label="Backups to keep">
     {#each KEEP_OPTIONS as n (n)}
       <option value={n}>Keep {n} backups</option>
     {/each}
@@ -148,17 +151,13 @@
 </SettingRow>
 
 <SettingRow label="Restore from a backup" description="Replaces all current data. A copy of the current data is saved first.">
-  <button type="button" class="btn btn-ghost border border-zinc-800" disabled={busy} onclick={pickRestore}>Choose backup…</button>
+  <button type="button" class="btn btn-secondary" disabled={busy} onclick={pickRestore}>Choose backup…</button>
 </SettingRow>
 
 <SettingRow label="Export" description="Everything as JSON, or tasks / projects as CSV for Excel or Google Sheets.">
-  <button type="button" class="btn btn-ghost border border-zinc-800 px-2.5 py-1 text-xs" disabled={busy} onclick={() => exportWith(exportJson)}>
-    JSON
-  </button>
-  <button type="button" class="btn btn-ghost border border-zinc-800 px-2.5 py-1 text-xs" disabled={busy} onclick={() => exportWith(exportTasksCsv)}>
-    Tasks CSV
-  </button>
-  <button type="button" class="btn btn-ghost border border-zinc-800 px-2.5 py-1 text-xs" disabled={busy} onclick={() => exportWith(exportProjectsCsv)}>
+  <button type="button" class="btn btn-secondary btn-sm" disabled={busy} onclick={() => exportWith(exportJson)}>JSON</button>
+  <button type="button" class="btn btn-secondary btn-sm" disabled={busy} onclick={() => exportWith(exportTasksCsv)}>Tasks CSV</button>
+  <button type="button" class="btn btn-secondary btn-sm" disabled={busy} onclick={() => exportWith(exportProjectsCsv)}>
     Projects CSV
   </button>
 </SettingRow>
@@ -166,30 +165,27 @@
 <SettingRow label="Data folder" description="Where the database and settings are stored.">
   <button
     type="button"
-    class="btn btn-ghost border border-zinc-800"
+    class="btn btn-secondary"
     disabled={!paths}
-    onclick={() => paths && run(() => openFolder(paths!.data_dir))}
+    onclick={() => paths && run("Couldn't open the folder", () => openFolder(paths!.data_dir))}
   >
     <Icon name="folder" size={14} />Open data folder
   </button>
 </SettingRow>
 
-{#if message}
-  {@const result = message}
-  <div class="flex items-center gap-3 px-4 py-2.5 text-xs {result.error ? 'text-red-400' : 'text-emerald-300'}">
-    <p class="min-w-0 flex-1 break-words">{result.text}</p>
-    {#if result.folder}
-      <button type="button" class="btn btn-ghost px-2 py-0.5 text-xs" onclick={() => openFolder(result.folder!)}>Show in folder</button>
-    {/if}
-  </div>
-{/if}
-
-<Modal open={restorePath !== null} title="Restore from backup?" submitLabel="Restore" danger onclose={() => (restorePath = null)} onsubmit={restore}>
-  <p class="text-sm text-zinc-300">
+<Modal
+  open={restorePath !== null}
+  title="Restore from backup?"
+  submitLabel="Restore"
+  danger
+  onclose={() => (restorePath = null)}
+  onsubmit={restore}
+>
+  <p class="text-sm text-fg">
     All current clients, projects, tasks and notes will be replaced with the data in
-    <span class="font-medium text-zinc-100">{restorePath ? fileName(restorePath) : ""}</span>.
+    <span class="font-medium text-strong">{restorePath ? fileName(restorePath) : ""}</span>.
   </p>
-  <p class="text-xs text-zinc-500">
+  <p class="text-xs text-faint">
     A copy of the current data is saved in the data folder first ("…backup-before-restore-…"), so it can be brought
     back. The app reloads when it's done.
   </p>

@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import { marked } from "marked";
   import DOMPurify from "dompurify";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { getProjectNote, saveProjectNote } from "$lib/db";
+  import Icon from "./Icon.svelte";
   import Tabs from "./Tabs.svelte";
 
   let { projectId }: { projectId: number } = $props();
@@ -13,6 +14,7 @@
   let loaded = $state(false);
   let mode = $state<"edit" | "preview">("edit");
   let status = $state<"idle" | "saving" | "saved">("idle");
+  let textarea = $state<HTMLTextAreaElement>();
 
   // Not reactive: the project the current content belongs to, and whether it has unsaved edits.
   let noteProjectId = 0;
@@ -26,7 +28,8 @@
     const note = await getProjectNote(id);
     content = note?.content ?? "";
     loaded = true;
-    if (!content) mode = "edit";
+    // Written notes open for reading; an empty note opens ready to type.
+    mode = content.trim() ? "preview" : "edit";
   }
 
   async function save() {
@@ -44,6 +47,12 @@
     status = "idle";
     clearTimeout(saveTimer);
     saveTimer = setTimeout(save, 1000);
+  }
+
+  async function startEditing() {
+    mode = "edit";
+    await tick();
+    textarea?.focus();
   }
 
   // Load on mount and when the project changes; save any pending edits on the way out.
@@ -84,12 +93,12 @@
   }
 </script>
 
-<section class="card">
-  <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
-    <h2 class="text-xs font-semibold text-zinc-300">Notes</h2>
+<section class="card transition-colors duration-150 focus-within:border-line-strong">
+  <div class="card-header">
+    <h2 class="card-title">Notes</h2>
     <div class="flex items-center gap-3">
-      <span class="text-xs text-zinc-500">
-        {#if status === "saving"}Saving…{:else if status === "saved"}Saved{/if}
+      <span class="flex items-center gap-1 text-xs text-faint" aria-live="polite">
+        {#if status === "saving"}Saving…{:else if status === "saved"}<Icon name="check" size={12} />Saved{/if}
       </span>
       <Tabs
         options={[
@@ -98,24 +107,30 @@
         ]}
         bind:value={mode}
         onchange={save}
+        label="Notes view"
       />
     </div>
   </div>
   {#if mode === "edit"}
     <textarea
-      class="block min-h-64 w-full resize-y bg-transparent px-4 py-3 font-mono text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
-      placeholder={loaded ? "Write notes in markdown…" : "Loading…"}
+      bind:this={textarea}
+      class="block min-h-64 w-full resize-y bg-transparent px-4 py-3 font-mono text-sm text-fg placeholder:text-faint focus:outline-none"
+      placeholder={loaded ? "Write notes in Markdown: # headings, - lists, **bold**, [links](https://…)" : "Loading…"}
+      aria-label="Project notes"
       disabled={!loaded}
       bind:value={content}
       {oninput}
       onblur={save}
     ></textarea>
   {:else if content.trim()}
+    <!-- Double-click the text to edit it. -->
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="markdown min-h-64 px-4 py-3" onclick={onPreviewClick}>
+    <div class="markdown min-h-64 px-4 py-3" onclick={onPreviewClick} ondblclick={startEditing} title="Double-click to edit">
       {@html html}
     </div>
   {:else}
-    <p class="min-h-64 px-4 py-3 text-sm text-zinc-500">Nothing to preview yet.</p>
+    <div class="min-h-64 px-4 py-3">
+      <button type="button" class="link text-sm" onclick={startEditing}>Nothing here yet. Write the first note</button>
+    </div>
   {/if}
 </section>

@@ -6,6 +6,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { DEFAULT_QUICK_CAPTURE_KEYS, quickCaptureKeys, setQuickCaptureKeys, settings } from "$lib/settings.svelte";
+  import { toast } from "$lib/toast.svelte";
 
   let recording = $state(false);
   let pressed = $state("");
@@ -69,6 +70,7 @@
     try {
       await setQuickCaptureKeys(keys === DEFAULT_QUICK_CAPTURE_KEYS ? null : keys);
       error = "";
+      toast.success(`Quick capture is now ${quickCaptureKeys().split("+").map(label).join("+")}`);
     } catch (e) {
       error = String(e);
     }
@@ -84,7 +86,7 @@
       <button
         bind:this={button}
         type="button"
-        class="rounded-md border border-violet-500 bg-zinc-950 px-2.5 py-1 text-xs text-zinc-300 ring-1 ring-violet-500/40 outline-none"
+        class="rounded-control border border-accent bg-field px-2.5 py-1 text-xs text-fg ring-2 ring-accent/25 outline-none"
         {onkeydown}
         onblur={() => (recording = false)}
       >
@@ -93,14 +95,14 @@
     {:else}
       <span class="flex gap-0.5">
         {#each quickCaptureKeys().split("+") as key (key)}
-          <kbd class="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-sans text-[11px] text-zinc-300">{label(key)}</kbd>
+          <kbd class="kbd">{label(key)}</kbd>
         {/each}
       </span>
-      <button type="button" class="btn btn-ghost px-2 py-1 text-xs" onclick={start}>Change</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick={start}>Change</button>
       {#if settings.quick_capture_keys !== null}
-        <button type="button" class="btn btn-ghost px-2 py-1 text-xs" onclick={() => save(null)}>Reset</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick={() => save(null)}>Reset</button>
       {/if}
     {/if}
   </div>
-  {#if error}<p class="max-w-xs text-right text-xs text-red-400">{error}</p>{/if}
+  {#if error}<p class="max-w-xs text-right text-xs text-danger" role="alert">{error}</p>{/if}
 </div>

@@ -2,6 +2,7 @@
   import { page } from "$app/state";
   import { inbox } from "$lib/inbox.svelte";
   import { helpState } from "$lib/shortcuts.svelte";
+  import { isSidebarCollapsed, sidebar, toggleSidebar } from "$lib/sidebar.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
 
   /** key: the letter after G that opens the page (see shortcuts.svelte.ts). */
@@ -19,39 +20,59 @@
 
   const settingsLink: Link = { href: "/settings", label: "Settings", icon: "settings", key: "S" };
 
+  let collapsed = $derived(isSidebarCollapsed());
+
   function isActive(href: string) {
     const path = page.url.pathname;
     return href === "/" ? path === "/" : path.startsWith(href);
   }
+
+  const itemClass = "flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-control text-sm transition-colors duration-150";
 </script>
 
 {#snippet navLink(link: Link)}
+  {@const active = isActive(link.href)}
   <a
     href={link.href}
-    title="{link.label} · G then {link.key}"
-    class="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors {isActive(link.href)
-      ? 'bg-zinc-800 text-zinc-100'
-      : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'}"
+    title={collapsed ? `${link.label} (G then ${link.key})` : `G then ${link.key}`}
+    aria-current={active ? "page" : undefined}
+    class="{itemClass} {collapsed ? 'justify-center' : 'px-2.5'} {active
+      ? 'bg-selected font-medium text-strong'
+      : 'text-muted hover:bg-hover hover:text-strong'}"
   >
-    <span class={isActive(link.href) ? "text-violet-400" : ""}><Icon name={link.icon} /></span>
-    {link.label}
-    {#if link.badge}
-      <span class="ml-auto rounded-full bg-violet-500/15 px-1.5 text-[11px] font-medium text-violet-300 tabular-nums">
+    <span class="relative {active ? 'text-accent-text' : ''}">
+      <Icon name={link.icon} />
+      {#if collapsed && link.badge}
+        <span class="absolute -top-1.5 -right-2 min-w-4 rounded-full bg-accent px-1 text-center text-2xs leading-4 font-semibold text-white tabular-nums">
+          {link.badge}
+        </span>
+      {/if}
+    </span>
+    <span class={collapsed ? "sr-only" : "truncate"}>{link.label}</span>
+    {#if !collapsed && link.badge}
+      <span class="ml-auto rounded-full bg-accent/15 px-1.5 text-2xs font-semibold text-accent-text-strong tabular-nums">
         {link.badge}
       </span>
     {/if}
   </a>
 {/snippet}
 
-<aside class="flex w-52 shrink-0 flex-col border-r border-zinc-800/80 bg-zinc-900/40 px-2 py-3">
-  <div class="mb-4 flex items-center gap-2 px-2.5 py-1">
-    <img src="/logo.png" alt="" class="size-6 shrink-0" />
-    <span class="text-sm font-semibold text-zinc-100">MilestoneSpace</span>
-    {#if import.meta.env.DEV}
-      <span
-        class="rounded bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-300"
-        title="Development build: using tracker-dev.db">DEV</span
-      >
+<aside
+  class="flex shrink-0 flex-col border-r border-line bg-sidebar px-2 py-3 transition-[width] duration-150 {collapsed ? 'w-14' : 'w-52'}"
+  aria-label="Main navigation"
+>
+  <div class="mb-4 flex h-8 items-center gap-2 {collapsed ? 'justify-center' : 'px-2'}">
+    <span class="relative shrink-0">
+      <img src="/logo.png" alt="MilestoneSpace" class="size-6" />
+      {#if import.meta.env.DEV && collapsed}
+        <span class="absolute -right-1 -bottom-1 size-2 rounded-full bg-accent ring-2 ring-sidebar" title="Development build"></span>
+      {/if}
+    </span>
+    {#if !collapsed}
+      <span class="truncate text-sm font-semibold text-strong">MilestoneSpace</span>
+      {#if import.meta.env.DEV}
+        <span class="badge bg-accent/15 px-1 py-0 text-2xs text-accent-text-strong" title="Development build: using tracker-dev.db">DEV</span>
+      {/if}
     {/if}
   </div>
 
@@ -61,22 +82,41 @@
     {/each}
   </nav>
 
-  <p class="mt-6 mb-1 px-2.5 text-[11px] font-medium tracking-wide text-zinc-600 uppercase">More</p>
+  {#if collapsed}
+    <div class="mx-2 my-3 border-t border-line"></div>
+  {:else}
+    <p class="eyebrow mt-6 mb-1 px-2.5">More</p>
+  {/if}
   <nav class="space-y-0.5">
     {#each secondaryLinks as link (link.href)}
       {@render navLink(link)}
     {/each}
   </nav>
 
-  <nav class="mt-auto space-y-0.5">
+  <div class="mt-auto space-y-0.5">
+    {#if !sidebar.narrow}
+      <button
+        type="button"
+        class="{itemClass} text-faint hover:bg-hover hover:text-strong {collapsed ? 'justify-center' : 'px-2.5'}"
+        title={collapsed ? "Expand sidebar ([)" : "Collapse sidebar ([)"}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        aria-expanded={!collapsed}
+        onclick={toggleSidebar}
+      >
+        <Icon name="panel" />
+        {#if !collapsed}<span>Collapse</span><kbd class="kbd ml-auto">[</kbd>{/if}
+      </button>
+    {/if}
     <button
       type="button"
-      class="flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-zinc-500 transition-colors hover:bg-zinc-800/50 hover:text-zinc-200"
+      class="{itemClass} text-faint hover:bg-hover hover:text-strong {collapsed ? 'justify-center' : 'px-2.5'}"
+      title="Keyboard shortcuts (?)"
       onclick={() => (helpState.open = true)}
     >
-      Shortcuts
-      <kbd class="ml-auto rounded border border-zinc-700 bg-zinc-800 px-1.5 font-sans text-[11px] text-zinc-400">?</kbd>
+      <Icon name="keyboard" />
+      <span class={collapsed ? "sr-only" : ""}>Shortcuts</span>
+      {#if !collapsed}<kbd class="kbd ml-auto">?</kbd>{/if}
     </button>
     {@render navLink(settingsLink)}
-  </nav>
+  </div>
 </aside>

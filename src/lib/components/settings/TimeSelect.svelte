@@ -8,7 +8,7 @@
   const TIMES = Array.from({ length: 48 }, (_, i) => `${pad(Math.floor(i / 2))}:${i % 2 ? "30" : "00"}`);
 </script>
 
-<select class="input w-28 py-1 text-xs" bind:value aria-label={label} {disabled}>
+<select class="input input-sm w-28" bind:value aria-label={label} {disabled}>
   {#each TIMES as time (time)}
     <option value={time}>{formatTime(time)}</option>
   {/each}
