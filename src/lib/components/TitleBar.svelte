@@ -1,6 +1,6 @@
 <!--
   The main window's own title bar (tauri.conf.json turns the Windows frame off): logo and name on
-  the left, the date and time in the middle, Windows-style minimize / maximize / close on the right. The empty space drags the window
+  the left, the date and time in the middle (unless turned off in Settings → Date and time), Windows-style minimize / maximize / close on the right. The empty space drags the window
   and double-clicking it maximizes (data-tauri-drag-region). Close goes through the window's
   CloseRequested handler in lib.rs, so "Close button minimizes to tray" still applies.
 -->
@@ -8,6 +8,7 @@
   import { onMount } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { formatLongDate, formatTime, toDateString } from "$lib/dates";
+  import { settings } from "$lib/settings.svelte";
 
   const appWindow = getCurrentWindow();
 
@@ -34,9 +35,11 @@
 
 <div class="relative flex h-10 shrink-0 items-center bg-chrome pl-3.5 select-none" data-tauri-drag-region>
   <!-- Centered on the window, not between the name and the buttons. Clicks go through, so it still drags. -->
-  <time class="pointer-events-none absolute left-1/2 -translate-x-1/2 text-ui whitespace-nowrap text-muted tabular-nums max-md:hidden">
-    {clock}
-  </time>
+  {#if settings.title_bar_clock}
+    <time class="pointer-events-none absolute left-1/2 -translate-x-1/2 text-ui whitespace-nowrap text-muted tabular-nums max-md:hidden">
+      {clock}
+    </time>
+  {/if}
   <div class="flex min-w-0 flex-1 items-center gap-2.5" data-tauri-drag-region>
     <img src="/logo.png" alt="" class="pointer-events-none size-5 rounded-[5px]" />
     <span class="pointer-events-none truncate text-ui font-semibold text-strong">MilestoneSpace</span>

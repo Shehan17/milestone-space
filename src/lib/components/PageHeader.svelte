@@ -3,10 +3,12 @@
 -->
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { settings } from "$lib/settings.svelte";
   import Icon from "./Icon.svelte";
 
   interface Props {
     title: string;
+    /** What the page is for. Hidden when Settings → Appearance → Page descriptions is off. */
     subtitle?: string;
     /** A small line above the title. */
     eyebrow?: string;
@@ -40,7 +42,7 @@
         <h1 class="truncate {small ? 'text-lg' : 'text-title'} font-semibold text-strong">{title}</h1>
         {#if meta}
           {@render meta()}
-        {:else if subtitle}
+        {:else if subtitle && settings.page_descriptions}
           <p class="mt-1.5 text-sm text-muted">{subtitle}</p>
         {/if}
       </div>
