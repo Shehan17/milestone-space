@@ -1,4 +1,4 @@
-<!-- The toasts from toast.svelte.ts, bottom right. Hovering or focusing one keeps it open. -->
+<!-- The toasts from toast.svelte.ts, bottom center. Hovering or focusing one keeps it open. -->
 <script lang="ts">
   import { flip } from "svelte/animate";
   import { fade, fly } from "svelte/transition";
@@ -43,14 +43,14 @@
 </script>
 
 <div
-  class="pointer-events-none fixed right-4 bottom-4 z-[60] flex w-80 max-w-[calc(100vw-2rem)] flex-col items-stretch gap-2"
+  class="pointer-events-none fixed bottom-7 left-1/2 z-[60] flex w-96 max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-stretch gap-2"
   role="region"
   aria-label="Notifications"
   aria-live="polite"
 >
   {#each toasts as toast (toast.id)}
     <div
-      class="pointer-events-auto flex items-start gap-2.5 rounded-card border border-line bg-raised py-2.5 pr-2 pl-3 shadow-overlay"
+      class="pointer-events-auto flex items-start gap-3 rounded-item border border-line-strong bg-raised py-3 pr-2.5 pl-4 shadow-overlay"
       role={toast.kind === "error" ? "alert" : "status"}
       animate:flip={{ duration: ms() }}
       in:fly={{ y: 8, duration: ms() }}
@@ -61,7 +61,7 @@
         <Icon name={ICONS[toast.kind]} size={16} />
       </span>
       <div class="min-w-0 flex-1">
-        <p class="text-sm text-strong">{toast.message}</p>
+        <p class="text-ui text-strong">{toast.message}</p>
         {#if toast.detail}
           <p class="mt-0.5 line-clamp-4 text-xs break-words text-muted">{toast.detail}</p>
         {/if}

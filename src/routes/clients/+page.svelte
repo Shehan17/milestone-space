@@ -67,27 +67,28 @@
   useShortcuts({ n: openNew });
 </script>
 
-<PageHeader title="Clients" subtitle={loaded ? `${clients.length} ${clients.length === 1 ? "client" : "clients"}` : ""}>
+<PageHeader narrow title="Clients" subtitle="The people and companies your client projects are for.">
   {#snippet actions()}
-    <button type="button" class="btn btn-primary" onclick={openNew} title="New client (N)">
-      <Icon name="plus" size={14} />New client
+    <button type="button" class="btn btn-primary btn-lg" onclick={openNew} title="New client (N)">
+      <Icon name="plus" size={18} />New client
     </button>
   {/snippet}
 </PageHeader>
 
-<div class="page py-6">
+<div class="page page-narrow pt-5 pb-12">
   <div class="card divide-y divide-line">
     {#if !loaded}
       <Skeleton />
     {:else}
       {#each clients as client (client.id)}
-        <div class="group list-row py-2.5">
-          <button type="button" class="w-56 min-w-0 shrink-0 cursor-pointer text-left" onclick={() => openEdit(client)}>
-            <p class="truncate text-sm font-medium text-strong">{client.name}</p>
-            <p class="truncate text-xs text-faint">{client.email || "No email"}</p>
+        <div class="group list-row py-3.5">
+          <span class="grid size-9.5 shrink-0 place-items-center rounded-full bg-selected font-semibold text-fg" aria-hidden="true">
+            {client.name.trim().charAt(0).toUpperCase() || "?"}
+          </span>
+          <button type="button" class="min-w-0 flex-1 cursor-pointer text-left" onclick={() => openEdit(client)}>
+            <p class="truncate font-medium text-strong">{client.name}</p>
+            <p class="truncate text-xs text-faint" title={client.notes || undefined}>{client.email || "No email"}</p>
           </button>
-          <p class="hidden min-w-0 flex-1 truncate text-xs text-faint md:block">{client.notes}</p>
-          <span class="flex-1 md:hidden"></span>
           {#if client.email}
             <button
               type="button"
@@ -96,12 +97,12 @@
               title="Email {client.email}"
               onclick={() => email(client.email)}
             >
-              <Icon name="mail" size={14} />
+              <Icon name="mail" size={16} />
             </button>
           {/if}
           <a
             href="/projects?client={client.id}"
-            class="shrink-0 rounded-control px-1.5 py-0.5 text-xs text-muted tabular-nums transition-colors duration-150 hover:bg-hover hover:text-strong"
+            class="shrink-0 rounded-control px-2 py-1 text-xs text-muted tabular-nums transition-colors duration-150 hover:bg-selected hover:text-strong"
             title="Show {client.name}'s projects"
           >
             {client.project_count}
@@ -109,7 +110,7 @@
           </a>
           <div class="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
             <button type="button" class="icon-btn" aria-label="Edit client" title="Edit" onclick={() => openEdit(client)}>
-              <Icon name="edit" size={14} />
+              <Icon name="edit" size={16} />
             </button>
             <button
               type="button"
@@ -118,7 +119,7 @@
               title="Delete"
               onclick={() => (toDelete = client)}
             >
-              <Icon name="trash" size={14} />
+              <Icon name="trash" size={16} />
             </button>
           </div>
         </div>

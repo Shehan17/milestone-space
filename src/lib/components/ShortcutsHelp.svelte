@@ -5,7 +5,7 @@
 </script>
 
 <Modal open={helpState.open} title="Keyboard shortcuts" size="lg" onclose={() => (helpState.open = false)}>
-  <div class="-mx-5 -my-4 max-h-[60vh] overflow-y-auto px-5 py-4">
+  <div class="-mx-6 -my-5 max-h-[60vh] overflow-y-auto px-6 py-5">
     <ShortcutList />
   </div>
 </Modal>

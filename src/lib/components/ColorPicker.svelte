@@ -7,8 +7,8 @@
   let isCustomColor = $derived(!PROJECT_COLORS.includes(value));
 </script>
 
-<div role="group" aria-label="Color">
-  <span class="mb-1.5 block text-xs font-medium text-muted">Color</span>
+<div role="group" aria-label="Color" class="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+  <span class="text-xs font-medium text-muted">Color</span>
   <div class="flex flex-wrap items-center gap-2">
     {#each PROJECT_COLORS as color (color)}
       <button

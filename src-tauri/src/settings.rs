@@ -17,6 +17,10 @@ pub struct Settings {
     pub start_minimized: bool,
     /// Custom quick capture keys, e.g. "Ctrl+Shift+K". None: the build's default.
     pub quick_capture_keys: Option<String>,
+    /// The Today widget (route /widget) is shown, also after a restart.
+    pub show_widget: bool,
+    /// The widget stays above other windows. Off: it sits on the desktop, behind them.
+    pub widget_on_top: bool,
     /// Every other setting, kept as the frontend sent it.
     #[serde(flatten)]
     pub other: Map<String, Value>,
@@ -24,7 +28,14 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { close_to_tray: true, start_minimized: true, quick_capture_keys: None, other: Map::new() }
+        Self {
+            close_to_tray: true,
+            start_minimized: true,
+            quick_capture_keys: None,
+            show_widget: false,
+            widget_on_top: false,
+            other: Map::new(),
+        }
     }
 }
 

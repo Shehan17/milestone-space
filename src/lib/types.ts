@@ -45,6 +45,35 @@ export const PRIORITY_LABELS: Record<Priority, string> = {
   high: "High",
 };
 
+/**
+ * Misc tasks: small everyday jobs with no project (project_id NULL), listed on the Misc page. They have
+ * no milestone, due date or board status (db.ts enforces it). This is how they show where a project would.
+ */
+export const MISC_LABEL = "Misc";
+/** Their dot is neutral (a theme color, so it follows the 5 themes). */
+export const MISC_COLOR = "var(--faint)";
+
+/** False for tasks of projects left out of a list (archived, completed); tasks with no project always count. */
+export function inShownProject(task: { project_id: number | null }, shownProjectIds: Set<number>): boolean {
+  return task.project_id === null || shownProjectIds.has(task.project_id);
+}
+
+const PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
+
+/** Sort order for tasks: higher priority first, then earlier due date (no date last). */
+export function byUrgency(a: Task, b: Task): number {
+  return (
+    PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] ||
+    (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999") ||
+    a.id - b.id
+  );
+}
+
+/** Today's plan: open tasks first, finished ones at the bottom (the Today page and the widget). */
+export function byTodayOrder(a: Task, b: Task): number {
+  return Number(a.is_done) - Number(b.is_done) || byUrgency(a, b);
+}
+
 // Dates are stored as "YYYY-MM-DD" strings (what <input type="date"> produces).
 // created_at is an SQLite datetime string.
 
@@ -77,7 +106,7 @@ export interface ProjectInput {
 export interface Project extends ProjectInput {
   id: number;
   created_at: string;
-  /** When the project was pinned to the dashboard; null when not pinned. */
+  /** When the project was pinned to the Today page; null when not pinned. */
   pinned_at: string | null;
   client_name: string | null;
   task_count: number;
@@ -100,7 +129,8 @@ export interface Milestone extends MilestoneInput {
 }
 
 export interface TaskInput {
-  project_id: number;
+  /** null for a task with no project; such a task has no milestone either. */
+  project_id: number | null;
   milestone_id: number | null;
   title: string;
   priority: Priority;
@@ -117,8 +147,9 @@ export interface Task extends TaskInput {
   /** The day ("YYYY-MM-DD") the task was picked for the Today list; null when not planned. */
   planned_for: string | null;
   created_at: string;
-  project_name: string;
-  project_color: string;
+  /** null (both) for a task with no project. */
+  project_name: string | null;
+  project_color: string | null;
   milestone_title: string | null;
 }
 

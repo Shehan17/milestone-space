@@ -1,12 +1,21 @@
 <!-- A thin progress bar: done out of total. The color defaults to the accent (projects pass their own). -->
 <script lang="ts">
-  let { done, total, color, label }: { done: number; total: number; color?: string; label?: string } = $props();
+  interface Props {
+    done: number;
+    total: number;
+    color?: string;
+    label?: string;
+    /** "md" for the larger bar on the project overview. */
+    size?: "sm" | "md";
+  }
+
+  let { done, total, color, label, size = "sm" }: Props = $props();
 
   let percent = $derived(total > 0 ? Math.round((done / total) * 100) : 0);
 </script>
 
 <div
-  class="h-1 min-w-8 flex-1 overflow-hidden rounded-full bg-line"
+  class="{size === 'md' ? 'h-2' : 'h-1.5'} min-w-8 flex-1 overflow-hidden rounded-full bg-selected"
   role="progressbar"
   aria-valuemin={0}
   aria-valuemax={100}

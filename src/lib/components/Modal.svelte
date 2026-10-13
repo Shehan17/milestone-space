@@ -25,6 +25,12 @@
     /** Edit dialogs: a Delete button on the left of the footer. */
     ondelete?: () => void;
     deleteLabel?: string;
+    /** No title bar (the title is still read out): for the New dialog, whose body is one big field. */
+    hideHeader?: boolean;
+    /** Left side of the footer, e.g. a hint about where the item goes. */
+    footer?: Snippet;
+    /** Right side of the title bar, e.g. the project a task belongs to. */
+    aside?: Snippet;
     children: Snippet;
   }
 
@@ -39,6 +45,9 @@
     onsubmit,
     ondelete,
     deleteLabel = "Delete",
+    hideHeader = false,
+    footer,
+    aside,
     children,
   }: Props = $props();
 
@@ -161,31 +170,39 @@
       aria-modal="true"
       aria-labelledby="{uid}-title"
       aria-describedby={description ? `${uid}-description` : undefined}
-      class="w-full {size === 'lg' ? 'max-w-xl' : 'max-w-md'} rounded-dialog border border-line bg-raised shadow-overlay"
+      class="flex max-h-[calc(90vh-1rem)] w-full flex-col {size === 'lg' ? 'max-w-xl' : 'max-w-md'} overflow-clip rounded-dialog border border-line-strong bg-raised shadow-overlay"
       transition:scale={{ start: 0.97, duration: ms() }}
     >
-      <form bind:this={form} novalidate onsubmit={handleSubmit}>
-        <div class="flex items-start gap-3 border-b border-line py-3 pr-3 pl-5">
-          <div class="min-w-0 flex-1 py-0.5">
-            <h2 id="{uid}-title" class="text-sm font-semibold text-strong">{title}</h2>
-            {#if description}
-              <p id="{uid}-description" class="mt-0.5 text-xs text-faint">{description}</p>
-            {/if}
+      <!-- Never taller than the window: the body scrolls, the title and the buttons stay. -->
+      <form bind:this={form} class="flex min-h-0 flex-col" novalidate onsubmit={handleSubmit}>
+        {#if hideHeader}
+          <h2 id="{uid}-title" class="sr-only">{title}</h2>
+        {:else}
+          <div class="flex shrink-0 items-start gap-3 border-b border-line py-3.5 pr-3.5 pl-6">
+            <div class="min-w-0 flex-1 py-0.5">
+              <h2 id="{uid}-title" class="text-base font-semibold text-strong">{title}</h2>
+              {#if description}
+                <p id="{uid}-description" class="mt-0.5 text-ui text-muted">{description}</p>
+              {/if}
+            </div>
+            {#if aside}<div class="flex min-w-0 shrink items-center self-center text-xs text-faint">{@render aside()}</div>{/if}
+            <button type="button" class="icon-btn" aria-label="Close" title="Close (Esc)" onclick={onclose}>
+              <Icon name="x" size={18} />
+            </button>
           </div>
-          <button type="button" class="icon-btn" aria-label="Close" title="Close (Esc)" onclick={onclose}>
-            <Icon name="x" size={16} />
-          </button>
-        </div>
+        {/if}
 
-        <div class="space-y-3.5 px-5 py-4" data-modal-body>
+        <div class="min-h-0 space-y-4 overflow-y-auto {hideHeader ? 'px-4 pt-3.5 pb-1' : 'px-6 py-5'}" data-modal-body>
           {@render children()}
         </div>
 
-        <div class="flex items-center justify-end gap-2 border-t border-line px-5 py-3">
+        <div class="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-field py-3 {hideHeader ? 'px-4' : 'px-6'}">
           {#if ondelete}
             <button type="button" class="btn btn-danger-ghost -ml-2 mr-auto" onclick={ondelete}>
               <Icon name="trash" size={14} />{deleteLabel}
             </button>
+          {:else if footer}
+            <div class="mr-auto min-w-0 text-xs text-faint">{@render footer()}</div>
           {/if}
           {#if onsubmit}
             <button bind:this={closeButton} type="button" class="btn btn-ghost" onclick={onclose}>Cancel</button>

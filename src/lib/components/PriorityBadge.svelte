@@ -4,17 +4,12 @@
 -->
 <script lang="ts">
   import type { Priority } from "$lib/types";
-  import Icon from "./Icon.svelte";
 
   let { priority }: { priority: Priority } = $props();
 </script>
 
 {#if priority === "high"}
-  <span class="inline-flex items-center gap-0.5 text-xs font-medium text-danger" title="High priority">
-    <Icon name="arrow-up" size={12} />High
-  </span>
+  <span class="badge bg-danger/14 text-danger" title="High priority">High</span>
 {:else if priority === "low"}
-  <span class="inline-flex items-center gap-0.5 text-xs text-faint" title="Low priority">
-    <Icon name="arrow-down" size={12} />Low
-  </span>
+  <span class="badge bg-hover font-medium text-faint" title="Low priority">Low</span>
 {/if}

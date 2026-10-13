@@ -1,7 +1,6 @@
 <!-- Icons from Lucide (lucide.dev), inlined so there is nothing to load. Add new ones from the same set. -->
 <script module lang="ts">
   export type IconName =
-    | "dashboard"
     | "clients"
     | "projects"
     | "tasks"
@@ -39,7 +38,10 @@
     | "mail"
     | "pause"
     | "list"
-    | "board";
+    | "board"
+    | "shapes"
+    | "monitor"
+    | "more";
 </script>
 
 <script lang="ts">
@@ -58,12 +60,7 @@
   aria-hidden="true"
   class="shrink-0"
 >
-  {#if name === "dashboard"}
-    <rect x="3" y="3" width="7" height="7" rx="1" />
-    <rect x="14" y="3" width="7" height="7" rx="1" />
-    <rect x="3" y="14" width="7" height="7" rx="1" />
-    <rect x="14" y="14" width="7" height="7" rx="1" />
-  {:else if name === "clients"}
+  {#if name === "clients"}
     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
     <circle cx="9" cy="7" r="4" />
     <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
@@ -215,5 +212,17 @@
     <path d="M6 5v11" />
     <path d="M12 5v6" />
     <path d="M18 5v14" />
+  {:else if name === "shapes"}
+    <path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <circle cx="17.5" cy="17.5" r="3.5" />
+  {:else if name === "monitor"}
+    <rect width="20" height="14" x="2" y="3" rx="2" />
+    <path d="M8 21h8" />
+    <path d="M12 17v4" />
+  {:else if name === "more"}
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="19" cy="12" r="1" />
+    <circle cx="5" cy="12" r="1" />
   {/if}
 </svg>

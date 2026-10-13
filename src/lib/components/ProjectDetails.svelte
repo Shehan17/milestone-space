@@ -143,12 +143,12 @@
     </div>
   {:else}
     {#if loaded}
-      <p class="px-4 pt-4 pb-1 text-xs text-faint">
+      <p class="px-5 pt-4 pb-1 text-xs text-faint">
         No details yet. Add things you look up often: tech stack, version, account IDs, contact person.
       </p>
     {/if}
   {/each}
-  <form class="flex items-center gap-2 border-t border-line px-4 py-2.5 {details.length === 0 ? 'mt-3' : ''}" onsubmit={add}>
+  <form class="flex items-center gap-2 border-t border-line px-5 py-3 {details.length === 0 ? 'mt-3' : ''}" onsubmit={add}>
     <input class="input input-sm w-32 shrink-0" placeholder="Label" aria-label="New detail label" bind:value={newLabel} bind:this={labelInput} />
     <input class="input input-sm min-w-0 flex-1" placeholder="Value" aria-label="New detail value" bind:value={newValue} />
     <button type="submit" class="btn btn-secondary btn-sm" disabled={!newLabel.trim()}>

@@ -17,12 +17,14 @@
   import { formatDate } from "$lib/dates";
   import { inQuietHours, sendTestNotification } from "$lib/notifications";
   import {
+    START_PAGES,
     saveSettings,
+    setWidgetOnTop,
+    setWidgetShown,
     settings,
     type DateFormat,
     type Density,
     type FontSize,
-    type StartPage,
     type TimeFormat,
     type WeekStart,
   } from "$lib/settings.svelte";
@@ -67,13 +69,6 @@
     autostart = await isEnabled();
   }
 
-  const START_PAGES: { value: StartPage; label: string }[] = [
-    { value: "/", label: "Today" },
-    { value: "/dashboard", label: "Dashboard" },
-    { value: "/inbox", label: "Inbox" },
-    { value: "/projects", label: "Projects" },
-    { value: "/tasks", label: "Tasks" },
-  ];
 
   // ----- Appearance -----
 
@@ -86,10 +81,6 @@
     applyAppearance(settings); // the accent has light and dark shades
   }
 
-  const themeGroups = [
-    { label: "Dark", themes: THEMES.filter((t) => t.mode === "dark") },
-    { label: "Light", themes: THEMES.filter((t) => t.mode === "light") },
-  ];
 
   const densityOptions: { value: Density; label: string }[] = [
     { value: "compact", label: "Compact" },
@@ -168,8 +159,8 @@
         for (const entry of entries) visible.set(entry.target.id, entry.isIntersecting);
         currentSection = SECTIONS.find((s) => visible.get(s.id))?.id ?? currentSection;
       },
-      // Only the band just below the sticky page header counts.
-      { rootMargin: "-80px 0px -55% 0px" }
+      // Only the band near the top of the window counts.
+      { rootMargin: "-24px 0px -55% 0px" }
     );
     document.querySelectorAll("[data-settings-section]").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
@@ -185,22 +176,12 @@
 <!-- A miniature of the app drawn in the theme's own colors, so it previews correctly from any theme. -->
 {#snippet preview(theme: Theme)}
   {@const c = theme.preview}
-  <div class="flex h-24 overflow-hidden rounded-md border" style="background: {c.bg}; border-color: {c.border}">
-    <div class="w-1/4 space-y-1.5 border-r p-2" style="border-color: {c.border}">
-      <div class="h-1.5 w-3/4 rounded-full" style="background: {c.accent}"></div>
-      <div class="h-1.5 w-full rounded-full" style="background: {c.muted}; opacity: 0.5"></div>
-      <div class="h-1.5 w-2/3 rounded-full" style="background: {c.muted}; opacity: 0.5"></div>
-    </div>
-    <div class="flex-1 space-y-2 p-2.5">
-      <div class="h-2 w-1/2 rounded-full" style="background: {c.text}"></div>
-      <div class="space-y-1.5 rounded border p-2" style="background: {c.card}; border-color: {c.border}">
-        <div class="h-1.5 w-5/6 rounded-full" style="background: {c.muted}"></div>
-        <div class="h-1 overflow-hidden rounded-full" style="background: {c.border}">
-          <div class="h-full w-3/5" style="background: {c.accent}"></div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <span class="flex h-18 flex-col gap-1.5 rounded-control p-2.5" style="background: {c.bg}">
+    <span class="h-2.5 w-3/5 rounded-[3px]" style="background: {c.text}"></span>
+    <span class="flex flex-1 items-end rounded-[5px] p-1.25" style="background: {c.card}">
+      <span class="h-2 w-8.5 rounded-[3px]" style="background: {c.accent}"></span>
+    </span>
+  </span>
 {/snippet}
 
 {#snippet swatch(color: string, selected: boolean, label: string, onclick: () => void)}
@@ -217,16 +198,16 @@
   ></button>
 {/snippet}
 
-<PageHeader title="Settings" subtitle="Saved automatically" />
+<PageHeader title="Settings" subtitle="Changes apply right away." />
 
-<div class="page flex gap-8 py-6">
-  <nav class="sticky top-20 hidden w-40 shrink-0 space-y-0.5 self-start lg:block" aria-label="Settings sections">
+<div class="page flex gap-8 pt-5 pb-12">
+  <nav class="sticky top-6 hidden w-40 shrink-0 space-y-1 self-start lg:block" aria-label="Settings sections">
     {#each SECTIONS as section (section.id)}
       {@const current = currentSection === section.id}
       <a
         href="#{section.id}"
         aria-current={current ? "location" : undefined}
-        class="block rounded-control px-2.5 py-1 text-sm transition-colors duration-150 {current
+        class="block rounded-control px-3 py-1.5 text-ui transition-colors duration-150 {current
           ? 'bg-selected text-strong'
           : 'text-muted hover:bg-hover hover:text-strong'}"
         onclick={(e) => goToSection(e, section.id)}>{section.label}</a
@@ -234,7 +215,7 @@
     {/each}
   </nav>
 
-  <div class="max-w-3xl min-w-0 flex-1 space-y-6">
+  <div class="max-w-3xl min-w-0 flex-1 space-y-5">
     <SettingsSection id="general" title="General">
       <SettingRow
         label="Start with Windows"
@@ -260,6 +241,37 @@
       >
         <input type="checkbox" class="switch" bind:checked={settings.close_to_tray} />
       </SettingRow>
+      <SettingRow
+        label="Today widget"
+        description="A small window with today's plan on your desktop. Check off tasks and add new ones without opening the app."
+        toggle
+      >
+        <input type="checkbox" class="switch" checked={settings.show_widget} onchange={(e) => setWidgetShown(e.currentTarget.checked)} />
+      </SettingRow>
+      <SettingRow
+        label="Keep the widget on top"
+        description={settings.widget_on_top ? "The widget stays above other windows." : "The widget sits on the desktop, behind other windows."}
+        toggle
+        disabled={!settings.show_widget}
+      >
+        <input
+          type="checkbox"
+          class="switch"
+          checked={settings.widget_on_top}
+          disabled={!settings.show_widget}
+          onchange={(e) => setWidgetOnTop(e.currentTarget.checked)}
+        />
+      </SettingRow>
+      <SettingRow label="Your name" description="Used in the greeting on the Today page.">
+        <input
+          class="input input-sm w-44"
+          value={settings.display_name}
+          onchange={(e) => (settings.display_name = e.currentTarget.value.trim())}
+          placeholder="Optional"
+          aria-label="Your name"
+          autocomplete="off"
+        />
+      </SettingRow>
       <SettingRow label="Start page" description="The page that opens first.">
         <select class="input input-sm w-36" bind:value={settings.start_page} aria-label="Start page">
           {#each START_PAGES as page (page.value)}
@@ -270,33 +282,29 @@
     </SettingsSection>
 
     <SettingsSection id="appearance" title="Appearance" description="Saved on this computer.">
-      <div class="space-y-5 p-4">
-        {#each themeGroups as group (group.label)}
-          <div>
-            <p class="eyebrow mb-2">{group.label}</p>
-            <div class="grid gap-3 sm:grid-cols-2">
-              {#each group.themes as theme (theme.id)}
-                {@const selected = currentTheme === theme.id}
-                <button
-                  type="button"
-                  class="cursor-pointer rounded-card border p-2.5 text-left transition-colors duration-150 {selected
-                    ? 'border-accent ring-2 ring-accent/25'
-                    : 'border-line hover:border-line-strong'}"
-                  aria-pressed={selected}
-                  onclick={() => chooseTheme(theme.id)}
-                >
-                  {@render preview(theme)}
-                  <div class="mt-2.5 flex items-center gap-2">
-                    <span class="text-sm font-medium text-strong">{theme.name}</span>
-                    {#if selected}
-                      <span class="ml-auto text-accent-text"><Icon name="check" size={14} /></span>
-                    {/if}
-                  </div>
-                  <p class="text-xs text-faint">{theme.description}</p>
-                </button>
-              {/each}
-            </div>
-          </div>
+      <div class="grid grid-cols-[repeat(auto-fill,minmax(8.75rem,1fr))] gap-3 p-5">
+        {#each THEMES as theme (theme.id)}
+          {@const selected = currentTheme === theme.id}
+          <button
+            type="button"
+            class="flex cursor-pointer flex-col gap-2.5 rounded-item border-2 bg-chrome p-2 pb-3 text-left transition-colors duration-150 {selected
+              ? 'border-accent'
+              : 'border-line hover:border-line-strong'}"
+            aria-pressed={selected}
+            title={theme.description}
+            onclick={() => chooseTheme(theme.id)}
+          >
+            {@render preview(theme)}
+            <span class="flex items-start gap-2 px-1">
+              <span class="min-w-0 flex-1">
+                <span class="block text-ui font-semibold text-strong">{theme.name}</span>
+                <span class="block text-2xs text-faint">
+                  {theme.mode === "dark" ? "Dark" : "Light"}{theme.id === "aurora" ? " · new" : ""}
+                </span>
+              </span>
+              {#if selected}<span class="mt-0.5 text-accent-text"><Icon name="check" size={15} /></span>{/if}
+            </span>
+          </button>
         {/each}
       </div>
       <SettingRow
@@ -332,7 +340,7 @@
       <SettingRow label="Time format">
         <Tabs options={timeOptions} bind:value={settings.time_format} label="Time format" />
       </SettingRow>
-      <SettingRow label="Week starts on" description="Used for “Due this week” on the dashboard and “Next week” in date fields.">
+      <SettingRow label="Week starts on" description="Used for “This week” on the Today page and “Next week” in date fields.">
         <Tabs options={weekOptions} bind:value={settings.week_start} label="Week starts on" />
       </SettingRow>
     </SettingsSection>
@@ -397,8 +405,8 @@
       <SettingRow label="Quick capture" description="Opens a small box from any app. What you type goes to the Inbox.">
         <HotkeyRecorder />
       </SettingRow>
-      <div class="p-4">
-        <p class="mb-3 text-sm text-fg">All keyboard shortcuts</p>
+      <div class="p-5">
+        <p class="mb-3 text-sm font-medium text-strong">All keyboard shortcuts</p>
         <ShortcutList columns />
       </div>
     </SettingsSection>
@@ -413,7 +421,7 @@
       <SettingRow
         label="Completed projects"
         description={settings.completed_projects === "archive"
-          ? "Hidden from lists, tasks and the dashboard. Find them under Projects → Archive."
+          ? "Hidden from lists, tasks and Today. Find them under Projects → Archive."
           : "Stay in the project list with the others."}
       >
         <Tabs options={completedOptions} bind:value={settings.completed_projects} label="Completed projects" />

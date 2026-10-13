@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * MilestoneSpace design system.
+ * MilestoneSpace design system ("Aurora" redesign, v2: graphite with a blue accent).
  *
  * Colors are semantic tokens. Each color theme (Settings page, src/lib/theme.ts) defines them as
  * plain CSS variables below, and @theme inline turns them into Tailwind colors: bg-canvas,
@@ -9,25 +9,60 @@
  * theme recolors the whole app. theme.ts can override the four --accent* variables inline on
  * <html> (the accent color picked in Settings).
  *
- *   Surfaces  canvas (page) · sidebar · surface (cards) · raised (dialogs, board cards, toasts)
- *             field (inputs) · hover (row and button hover) · selected (current nav item, tab)
- *   Lines     line (borders, dividers) · line-strong (hover borders, switches, kbd)
+ *   Surfaces  chrome (window frame and title bar behind the panels; also wells: board columns,
+ *             segmented controls) · canvas (the page panel) · sidebar (the sidebar panel)
+ *             · surface (cards) · raised (dialogs, board cards, toasts)
+ *             field (inputs) · hover (row and button hover) · selected (current nav item, tab, tracks)
+ *   Lines     line (borders, dividers) · line-strong (button and input borders, switches, kbd)
  *   Text      strong (titles) · fg (content) · muted (secondary) · faint (dates, counts, hints)
  *             Every text token passes WCAG AA (4.5:1) on every surface, in every theme.
  *   Accent    accent (buttons, fills, focus ring) · accent-hover · accent-text (links, icons)
- *             · accent-text-strong (text on accent tints)
+ *             · accent-text-strong (text on accent tints) · on-accent (text on accent buttons)
  *   Status    danger (overdue, high priority, delete) · danger-solid (delete button)
  *             · warning (due within 3 days) · success. Red and orange mean late or urgent, nothing else.
  *
- * Sizes: text-2xs (11px, uppercase labels and badges), text-xs (12px, meta), text-sm (14px, body),
- * text-base (16px, page titles). Radius: rounded-control (buttons, inputs), rounded-card, rounded-dialog.
+ * Font: Onest (bundled, @fontsource-variable/onest in +layout.svelte).
+ * Sizes: text-2xs (12px, badges and uppercase labels), text-xs (13px, meta), text-ui (14px, buttons,
+ * subtitles), text-sm (15px, body), text-base (16px, section titles), text-title (28px, page titles).
+ * Radius: rounded-control 6px (buttons, inputs), rounded-item 8px (small cards, tiles), rounded-card 10px
+ * (cards, panels), rounded-dialog 12px.
  * Spacing is the Tailwind scale; the Spacing setting changes --spacing (theme.ts).
  * Shared classes for buttons, inputs, cards, rows and labels are in @layer components below.
  */
 
-/* Midnight (default): near-black with an indigo accent. On :root so it also applies with no theme set. */
+/* Aurora (default): neutral graphite panels with a blue accent. On :root so it also applies with no theme set. */
 :root {
   color-scheme: dark;
+  --chrome: #121212;
+  --canvas: #191919;
+  --sidebar: #191919;
+  --surface: #1f1f1f;
+  --raised: #232323;
+  --field: #1c1c1c;
+  --hover: #242424;
+  --selected: #2a2a2a;
+  --line: #2b2b2b;
+  --line-strong: #3a3a3a;
+  --strong: #f2f2f2;
+  --fg: #dcdcdc;
+  --muted: #ababab;
+  --faint: #959595;
+  --accent: #2870e6;
+  --accent-hover: #2263d6;
+  --accent-text: #7fb2ff;
+  --accent-text-strong: #b3d1ff;
+  --on-accent: #ffffff;
+  --danger: #f87171;
+  --danger-solid: #dc2626;
+  --warning: #fb923c;
+  --success: #34d399;
+  --scrim: rgb(4 6 10 / 0.66);
+  --overlay-shadow: 0 24px 60px -16px rgb(0 0 0 / 0.7), 0 2px 8px rgb(0 0 0 / 0.35);
+}
+
+/* Midnight: near-black with an indigo accent (the original look). */
+:root[data-theme="midnight"] {
+  --chrome: #0a0a0c;
   --canvas: #0f0f12;
   --sidebar: #131316;
   --surface: #16161a;
@@ -45,16 +80,12 @@
   --accent-hover: #6a74e6;
   --accent-text: #a0a8f5;
   --accent-text-strong: #c3c8fa;
-  --danger: #f87171;
-  --danger-solid: #dc2626;
-  --warning: #fb923c;
   --success: #34d399;
-  --scrim: rgb(0 0 0 / 0.62);
-  --overlay-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.7), 0 2px 8px rgb(0 0 0 / 0.35);
 }
 
 /* Deep Ocean: muted blue slate with a sky-blue accent. */
 :root[data-theme="ocean"] {
+  --chrome: #10161f;
   --canvas: #141b26;
   --sidebar: #17202c;
   --surface: #1a2330;
@@ -72,6 +103,7 @@
   --accent-hover: #3a8cc0;
   --accent-text: #74bde3;
   --accent-text-strong: #a3d4ee;
+  --success: #34d399;
 }
 
 /* Light themes: soft surfaces (no pure white), darker status colors so they stay readable. */
@@ -85,6 +117,7 @@
 
 /* Daylight: soft gray with a violet accent. */
 :root[data-theme="light"] {
+  --chrome: #d4d4db;
   --canvas: #e4e4e9;
   --sidebar: #dcdce2;
   --surface: #eeeef2;
@@ -109,6 +142,7 @@
 
 /* Sand: warm paper tones with a teal accent. */
 :root[data-theme="sand"] {
+  --chrome: #d6cdbf;
   --canvas: #e6dfd3;
   --sidebar: #ddd5c8;
   --surface: #efe9df;
@@ -132,6 +166,7 @@
 }
 
 @theme inline {
+  --color-chrome: var(--chrome);
   --color-canvas: var(--canvas);
   --color-sidebar: var(--sidebar);
   --color-surface: var(--surface);
@@ -149,6 +184,7 @@
   --color-accent-hover: var(--accent-hover);
   --color-accent-text: var(--accent-text);
   --color-accent-text-strong: var(--accent-text-strong);
+  --color-on-accent: var(--on-accent);
   --color-danger: var(--danger);
   --color-danger-solid: var(--danger-solid);
   --color-warning: var(--warning);
@@ -156,15 +192,24 @@
 }
 
 @theme {
-  /* Segoe UI Variable on Windows 11; no web font to load. */
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Onest Variable", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
 
-  --text-2xs: 0.6875rem;
+  --text-2xs: 0.75rem;
   --text-2xs--line-height: 1rem;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --text-ui: 0.875rem;
+  --text-ui--line-height: 1.25rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.375rem;
+  --text-title: 1.75rem;
+  --text-title--line-height: 2.25rem;
+  --text-title--letter-spacing: -0.02em;
 
   --radius-control: 0.375rem;
-  --radius-card: 0.5rem;
+  --radius-item: 0.5rem;
+  --radius-card: 0.625rem;
   --radius-dialog: 0.75rem;
 
   --animate-appear: appear 150ms ease-out 150ms both;
@@ -184,7 +229,7 @@
     scrollbar-color: var(--line-strong) transparent;
   }
   body {
-    @apply bg-canvas text-sm text-fg antialiased;
+    @apply bg-chrome font-sans text-sm text-fg tabular-nums antialiased;
   }
   /* One focus ring for every button, link and control used from the keyboard. Inputs draw their own. */
   :focus-visible {
@@ -192,7 +237,7 @@
     outline-offset: 1px;
   }
   ::selection {
-    background-color: color-mix(in oklab, var(--accent) 40%, transparent);
+    background-color: color-mix(in oklab, var(--accent) 30%, transparent);
   }
   @media (prefers-reduced-motion: reduce) {
     *,
@@ -207,20 +252,32 @@
 @layer components {
   /* Page width and side padding, shared by page headers and page content. */
   .page {
-    @apply mx-auto w-full max-w-5xl px-5 lg:px-8;
+    @apply mx-auto w-full max-w-[70rem] px-5 lg:px-10;
+  }
+  /* Single-column pages (Inbox, Clients). */
+  .page-narrow {
+    @apply max-w-[51.25rem];
   }
 
   .btn {
-    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-control px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-control px-3.5 text-ui font-medium whitespace-nowrap transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  /* The main action of a page (in its header). */
+  .btn-lg {
+    @apply h-10.5 gap-2 px-4.5 text-sm;
   }
   .btn-sm {
-    @apply gap-1 px-2 py-1 text-xs;
+    @apply h-8 gap-1.5 px-3 text-xs;
   }
   .btn-primary {
-    @apply bg-accent text-white hover:bg-accent-hover disabled:hover:bg-accent;
+    @apply bg-accent font-semibold text-on-accent hover:bg-accent-hover disabled:hover:bg-accent;
   }
   .btn-secondary {
-    @apply border border-line text-fg hover:border-line-strong hover:bg-hover hover:text-strong;
+    @apply border border-line-strong text-fg hover:bg-hover hover:text-strong;
+  }
+  /* A filled, quiet button inside lists ("+ Plan"). */
+  .btn-soft {
+    @apply bg-selected text-strong hover:bg-line-strong;
   }
   .btn-ghost {
     @apply text-muted hover:bg-hover hover:text-strong;
@@ -233,17 +290,17 @@
   }
 
   .icon-btn {
-    @apply inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control p-1 text-faint transition-colors duration-150 hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex shrink-0 cursor-pointer items-center justify-center rounded-control p-1.5 text-faint transition-colors duration-150 hover:bg-hover hover:text-fg disabled:cursor-not-allowed disabled:opacity-40;
   }
   .icon-btn-danger {
     @apply hover:bg-danger/10 hover:text-danger;
   }
 
   .input {
-    @apply w-full rounded-control border border-line bg-field px-2.5 py-1.5 text-sm text-strong transition-colors duration-150 placeholder:text-faint hover:border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/25 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+    @apply w-full rounded-control border border-line-strong bg-field px-3 py-2 text-sm text-strong transition-colors duration-150 placeholder:text-faint hover:border-faint/60 focus:border-accent focus:ring-2 focus:ring-accent/25 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
   }
   .input-sm {
-    @apply py-1 text-xs;
+    @apply px-2.5 py-1.5 text-xs;
   }
   /* A field with an error (Field.svelte, after the first Save). */
   [data-show-error] .input {
@@ -256,50 +313,82 @@
   .checkbox {
     @apply size-4 shrink-0 cursor-pointer accent-accent disabled:cursor-not-allowed;
   }
+  /* The round done toggle of tasks and milestones: a checkbox drawn as a circle with a check. */
+  .check-round {
+    @apply grid size-5.5 shrink-0 cursor-pointer appearance-none place-items-center rounded-full border-2 border-faint/60 transition-colors duration-150 hover:border-accent checked:border-accent checked:bg-accent disabled:cursor-not-allowed;
+    &::after {
+      @apply -mt-0.5 h-2.75 w-1.5 scale-0 rotate-45 border-r-[2.5px] border-b-[2.5px] border-on-accent transition-transform duration-150 content-[''];
+    }
+    &:checked::after {
+      @apply scale-100;
+    }
+  }
   /* On/off switch: a checkbox drawn as a switch (Settings). */
   .switch {
-    @apply relative h-4.5 w-8 shrink-0 cursor-pointer appearance-none rounded-full bg-line-strong transition-colors duration-150 checked:bg-accent disabled:cursor-not-allowed disabled:opacity-50;
+    @apply relative h-6.5 w-11 shrink-0 cursor-pointer appearance-none rounded-full bg-line-strong transition-colors duration-150 checked:bg-accent disabled:cursor-not-allowed disabled:opacity-50;
     &::before {
-      @apply absolute top-0.5 left-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform duration-150 content-[''];
+      @apply absolute top-0.75 left-0.75 size-5 rounded-full bg-white shadow-sm transition-transform duration-150 content-[''];
     }
     &:checked::before {
-      @apply translate-x-3.5;
+      @apply translate-x-4.5;
     }
   }
   /* Small toggle buttons, e.g. the date shortcuts under a date field. */
   .chip {
-    @apply cursor-pointer rounded-full border border-line px-2 py-0.5 text-xs text-muted transition-colors duration-150 hover:border-line-strong hover:bg-hover hover:text-strong;
+    @apply cursor-pointer rounded-full border border-line px-2.5 py-0.5 text-xs text-muted transition-colors duration-150 hover:border-line-strong hover:bg-hover hover:text-strong;
   }
   .chip-on {
-    @apply border-accent/60 bg-accent/15 text-accent-text-strong;
+    @apply border-accent/60 bg-accent/15 text-accent-text-strong hover:border-accent/60 hover:bg-accent/20 hover:text-accent-text-strong;
+  }
+  /* Filter pills (FilterPills.svelte): one is chosen. */
+  .pill {
+    @apply inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-line px-3.5 text-ui font-medium whitespace-nowrap text-muted transition-colors duration-150 hover:text-strong;
+  }
+  .pill-on {
+    @apply border-accent bg-accent/12 text-accent-text-strong hover:text-accent-text-strong;
   }
 
   .card {
-    @apply rounded-card border border-line bg-surface;
+    @apply overflow-clip rounded-card border border-line bg-surface;
   }
   /* The title bar of a card: the same height with or without a button in it. */
   .card-header {
-    @apply flex min-h-10 items-center justify-between gap-3 border-b border-line px-4 py-1.5;
+    @apply flex min-h-14 items-center justify-between gap-3 border-b border-line px-5 py-3;
   }
   .card-title {
-    @apply flex min-w-0 items-center gap-1.5 text-xs font-semibold text-fg;
+    @apply flex min-w-0 items-center gap-2 text-sm font-semibold text-strong;
   }
   .count {
     @apply font-normal text-faint tabular-nums;
   }
   .list-row {
-    @apply flex items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-hover;
+    @apply flex min-h-13 items-center gap-3.5 px-5 py-2 transition-colors duration-150 hover:bg-hover;
+  }
+  /*
+   * A row's buttons (Today, edit, delete) that float over its end, just before the done toggle, on
+   * hover or keyboard focus. The details under them (priority, due date) keep the space otherwise.
+   * The row needs `group relative`; the fade on the left blends into the row's hover color, and a short
+   * line on the right keeps them apart from the done toggle.
+   */
+  .row-actions {
+    @apply pointer-events-none absolute inset-y-0 right-14.5 flex items-center gap-0.5 bg-hover pr-2.5 pl-1 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-visible:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100;
+    &::before {
+      @apply absolute inset-y-0 right-full w-6 bg-linear-to-r from-transparent to-hover content-[''];
+    }
+    &::after {
+      @apply absolute top-1/2 right-0 h-5 w-px -translate-y-1/2 bg-line-strong content-[''];
+    }
   }
 
-  /* Small uppercase group label ("DUE SOON", "DARK"). */
+  /* Small uppercase group label ("MORE", "DUE SOON"). */
   .eyebrow {
-    @apply text-2xs font-semibold tracking-wider text-faint uppercase;
+    @apply text-2xs font-semibold tracking-[0.06em] text-faint uppercase;
   }
   .kbd {
-    @apply inline-flex min-w-5 items-center justify-center rounded border border-line-strong bg-hover px-1.5 py-px font-sans text-2xs font-medium text-muted;
+    @apply inline-flex min-w-5 items-center justify-center rounded-[0.3125rem] border border-line-strong bg-hover px-1.5 py-px font-sans text-2xs font-medium text-muted;
   }
   .badge {
-    @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap;
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-semibold whitespace-nowrap;
   }
   .link {
     @apply cursor-pointer text-accent-text underline-offset-2 hover:underline;

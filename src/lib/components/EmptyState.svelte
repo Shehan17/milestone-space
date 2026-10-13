@@ -15,17 +15,17 @@
   let { message, hint, icon, action, compact = false }: Props = $props();
 </script>
 
-<div class="flex flex-col items-center px-4 text-center {compact ? 'py-6' : 'py-10'}">
+<div class="flex flex-col items-center px-5 text-center {compact ? 'py-7' : 'py-11'}">
   {#if icon}
-    <span class="mb-3 grid size-9 place-items-center rounded-full bg-hover text-faint"><Icon name={icon} size={18} /></span>
+    <span class="mb-3 grid size-10 place-items-center rounded-full bg-selected text-muted"><Icon name={icon} size={18} /></span>
   {/if}
-  <p class="text-sm text-fg">{message}</p>
+  <p class="text-sm font-medium text-strong">{message}</p>
   {#if hint}
-    <p class="mt-1 max-w-sm text-xs text-faint">{hint}</p>
+    <p class="mt-1 max-w-sm text-ui text-faint">{hint}</p>
   {/if}
   {#if action}
     <button type="button" class="btn btn-sm mt-4 {action.primary ? 'btn-primary' : 'btn-secondary'}" onclick={action.onclick}>
-      {#if action.icon}<Icon name={action.icon} size={12} />{/if}{action.label}
+      {#if action.icon}<Icon name={action.icon} size={14} />{/if}{action.label}
     </button>
   {/if}
 </div>
