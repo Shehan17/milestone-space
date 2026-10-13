@@ -26,7 +26,7 @@
   const dotClass: Record<TaskStatus, string> = {
     todo: "bg-faint",
     in_progress: "bg-accent",
-    done: "bg-success",
+    done: "bg-line-strong",
   };
 
   /** Board order first (manual), then the oldest first. */
@@ -125,23 +125,23 @@
   }
 </script>
 
-<div class="grid gap-3 md:grid-cols-3">
+<div class="grid gap-3.5 md:grid-cols-3">
   {#each columns as column (column.status)}
     {@const isTarget = dropTarget?.status === column.status}
     {@const others = column.tasks.filter((t) => t.id !== dragging?.id)}
     <section
-      class="flex min-h-40 flex-col rounded-card border transition-colors duration-150 {isTarget
+      class="flex min-h-70 flex-col rounded-card border p-3 transition-colors duration-150 {isTarget
         ? 'border-accent/60 bg-accent/5'
-        : 'border-line bg-surface'}"
+        : 'border-line bg-chrome'}"
       aria-label={TASK_STATUS_LABELS[column.status]}
       ondragover={(e) => ondragover(e, column.status)}
       {ondragleave}
       {ondrop}
     >
-      <header class="flex items-center gap-2 py-2 pr-2 pl-3">
+      <header class="mb-2.5 flex items-center gap-2 pl-1">
         <span class="size-2 rounded-full {dotClass[column.status]}"></span>
-        <h3 class="text-xs font-semibold text-fg">{TASK_STATUS_LABELS[column.status]}</h3>
-        <span class="count text-xs">{column.tasks.length}</span>
+        <h3 class="text-ui font-semibold text-strong">{TASK_STATUS_LABELS[column.status]}</h3>
+        <span class="count text-ui">{column.tasks.length}</span>
         <button
           type="button"
           class="icon-btn ml-auto"
@@ -153,7 +153,7 @@
         </button>
       </header>
 
-      <div class="flex flex-1 flex-col gap-2 px-2 pb-2">
+      <div class="flex flex-1 flex-col gap-2.5">
         {#each column.tasks as task (task.id)}
           {#if isTarget && others[dropTarget!.index]?.id === task.id}
             <div class="h-0.5 rounded-full bg-accent"></div>
@@ -162,7 +162,7 @@
             type="button"
             draggable="true"
             data-card-id={task.id}
-            class="cursor-grab rounded-control border border-line bg-raised px-3 py-2 text-left transition-colors duration-150 hover:border-line-strong active:cursor-grabbing {dragging?.id ===
+            class="cursor-grab rounded-item border border-line bg-raised px-3.5 py-3 text-left transition-colors duration-150 hover:border-line-strong active:cursor-grabbing {dragging?.id ===
             task.id
               ? 'opacity-40'
               : ''}"
@@ -172,21 +172,17 @@
             onclick={() => onedit(task)}
             onkeydown={(e) => oncardkeydown(e, task)}
           >
-            <p class="text-sm break-words {task.status === 'done' ? 'text-faint line-through' : 'text-fg'}">
+            <p class="text-ui break-words {task.status === 'done' ? 'text-faint line-through' : 'text-fg'}">
               {task.title}
             </p>
             {#if task.priority !== "medium" || task.due_date || task.milestone_title || task.planned_for === today}
-              <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <PriorityBadge priority={task.priority} />
-                {#if task.due_date}<DeadlineLabel date={task.due_date} done={task.status === "done"} />{/if}
-                {#if task.milestone_title}
-                  <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-faint">
-                    <Icon name="flag" size={11} />{task.milestone_title}
-                  </span>
-                {/if}
+              <div class="mt-2 flex items-center gap-2">
+                {#if task.status !== "done"}<PriorityBadge priority={task.priority} />{/if}
+                <span class="min-w-0 flex-1 truncate text-xs text-faint">{task.milestone_title ?? ""}</span>
                 {#if task.planned_for === today}
-                  <span class="text-accent-text" title="On today's list"><Icon name="sun" size={12} /></span>
+                  <span class="text-accent-text" title="On today's list"><Icon name="sun" size={13} /></span>
                 {/if}
+                {#if task.due_date}<DeadlineLabel date={task.due_date} done={task.status === "done"} />{/if}
               </div>
             {/if}
           </button>
@@ -197,7 +193,7 @@
         {#if column.tasks.length === 0 && !isTarget}
           <button
             type="button"
-            class="flex flex-1 cursor-pointer items-center justify-center rounded-control border border-dashed border-line px-2 py-6 text-xs text-faint transition-colors duration-150 hover:border-line-strong hover:text-fg"
+            class="flex flex-1 cursor-pointer items-center justify-center rounded-item border border-dashed border-line px-2 py-6 text-xs text-faint transition-colors duration-150 hover:border-line-strong hover:text-fg"
             onclick={() => onadd(column.status)}
           >
             Drop a task here or add one

@@ -2,8 +2,8 @@
  * App settings, edited on the Settings page.
  *
  * Saved by Rust as settings.json next to the database (settings-dev.json for the dev build,
- * see src-tauri/src/settings.rs). Rust reads close_to_tray, start_minimized and
- * quick_capture_keys itself; the rest is only used here. The color theme is the exception: it
+ * see src-tauri/src/settings.rs). Rust reads close_to_tray, start_minimized,
+ * quick_capture_keys, show_widget and widget_on_top itself; the rest is only used here. The color theme is the exception: it
  * stays in localStorage (theme.ts) so app.html can apply it before the first paint.
  *
  * Loaded once per window in +layout.ts, before any page renders. Every window keeps a copy;
@@ -17,7 +17,15 @@ import type { Priority, Project, ProjectType } from "./types";
 /** Must match DEFAULT_QUICK_CAPTURE_KEYS in src-tauri/src/lib.rs. */
 export const DEFAULT_QUICK_CAPTURE_KEYS = import.meta.env.DEV ? "Ctrl+Alt+Shift+Space" : "Ctrl+Shift+Space";
 
-export type StartPage = "/" | "/dashboard" | "/inbox" | "/projects" | "/tasks";
+export type StartPage = "/" | "/inbox" | "/projects" | "/tasks";
+
+/** The pages the app can open on (Settings → Start page). */
+export const START_PAGES: { value: StartPage; label: string }[] = [
+  { value: "/", label: "Today" },
+  { value: "/inbox", label: "Inbox" },
+  { value: "/projects", label: "Projects" },
+  { value: "/tasks", label: "All tasks" },
+];
 export type AccentId = "theme" | "violet" | "indigo" | "blue" | "teal" | "emerald" | "rose" | "amber";
 export type Density = "compact" | "comfortable";
 export type FontSize = "small" | "default" | "large" | "larger";
@@ -31,6 +39,8 @@ export interface Settings {
   close_to_tray: boolean;
   start_minimized: boolean;
   start_page: StartPage;
+  /** Used in the Today page greeting ("Good morning, Sam"); empty = no name. */
+  display_name: string;
 
   // Appearance
   accent: AccentId;
@@ -54,10 +64,16 @@ export interface Settings {
   // Shortcuts. null = DEFAULT_QUICK_CAPTURE_KEYS. Changed only with setQuickCaptureKeys().
   quick_capture_keys: string | null;
 
+  // Today widget (a small window with today's plan). Owned by Rust: changed only with setWidgetShown()
+  // and setWidgetOnTop(), which also act on the window; the tray menu changes show_widget too.
+  show_widget: boolean;
+  /** Above other windows. Off: on the desktop, behind them. */
+  widget_on_top: boolean;
+
   // Projects and tasks
   default_project_type: ProjectType;
   default_priority: Priority;
-  /** "archive": completed projects leave the lists and dashboard and wait in Projects → Archive. */
+  /** "archive": completed projects leave the lists and Today and wait in Projects → Archive. */
   completed_projects: "show" | "archive";
 
   // Data and backup
@@ -74,6 +90,7 @@ export const DEFAULT_SETTINGS: Settings = {
   close_to_tray: true,
   start_minimized: true,
   start_page: "/",
+  display_name: "",
   accent: "theme",
   density: "compact",
   font_size: "default",
@@ -88,6 +105,8 @@ export const DEFAULT_SETTINGS: Settings = {
   quiet_start: "22:00",
   quiet_end: "07:00",
   quick_capture_keys: null,
+  show_widget: false,
+  widget_on_top: false,
   default_project_type: "personal",
   default_priority: "medium",
   completed_projects: "show",
@@ -103,6 +122,8 @@ const SETTINGS_CHANGED = "settings-changed";
 
 function assign(values: Partial<Settings>) {
   Object.assign(settings, values);
+  // A start page that no longer exists (the Dashboard was removed) opens Today instead.
+  if (!START_PAGES.some((p) => p.value === settings.start_page)) settings.start_page = "/";
   applyAppearance(settings);
 }
 
@@ -147,7 +168,19 @@ export async function setQuickCaptureKeys(keys: string | null) {
   await emit(SETTINGS_CHANGED, $state.snapshot(settings));
 }
 
-/** With "Move to Archive", completed projects are left out of lists, pickers and the dashboard. */
+/** Shows or hides the Today widget (remembered for the next start). Rust tells every window. */
+export async function setWidgetShown(shown: boolean) {
+  await invoke("set_widget_shown", { shown });
+  settings.show_widget = shown;
+}
+
+/** Keeps the Today widget above other windows, or puts it on the desktop behind them. */
+export async function setWidgetOnTop(onTop: boolean) {
+  await invoke("set_widget_on_top", { onTop });
+  settings.widget_on_top = onTop;
+}
+
+/** With "Move to Archive", completed projects are left out of lists, pickers and Today. */
 export function isArchived(project: Pick<Project, "status">): boolean {
   return settings.completed_projects === "archive" && project.status === "completed";
 }

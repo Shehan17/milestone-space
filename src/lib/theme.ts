@@ -7,7 +7,7 @@
  */
 import type { AccentId, Density, FontSize, Settings } from "./settings.svelte";
 
-export type ThemeId = "midnight" | "ocean" | "light" | "sand";
+export type ThemeId = "aurora" | "midnight" | "ocean" | "light" | "sand";
 
 export interface Theme {
   id: ThemeId;
@@ -20,10 +20,17 @@ export interface Theme {
 
 export const THEMES: Theme[] = [
   {
+    id: "aurora",
+    name: "Aurora",
+    mode: "dark",
+    description: "Neutral graphite with a blue accent. The default.",
+    preview: { bg: "#121212", card: "#1f1f1f", border: "#2b2b2b", text: "#f2f2f2", muted: "#959595", accent: "#2870e6" },
+  },
+  {
     id: "midnight",
     name: "Midnight",
     mode: "dark",
-    description: "Near-black with an indigo accent. The default.",
+    description: "Near-black with an indigo accent.",
     preview: { bg: "#0f0f12", card: "#16161a", border: "#26262d", text: "#f2f2f5", muted: "#8b8b96", accent: "#5560d8" },
   },
   {
@@ -49,7 +56,7 @@ export const THEMES: Theme[] = [
   },
 ];
 
-export const DEFAULT_THEME: ThemeId = "midnight";
+export const DEFAULT_THEME: ThemeId = "aurora";
 
 /** Must match the key read by the inline script in app.html. */
 const STORAGE_KEY = "milestonespace.theme";
@@ -75,6 +82,20 @@ export function setTheme(id: ThemeId) {
   } catch {
     // Still applied for this session.
   }
+}
+
+/**
+ * Follows a theme picked in another window (quick capture, the Today widget): they share
+ * localStorage, and its storage event reaches the other windows. Returns the cleanup function.
+ */
+export function followThemeChanges(onChange: () => void): () => void {
+  const handler = (event: StorageEvent) => {
+    if (event.key !== STORAGE_KEY || !isThemeId(event.newValue)) return;
+    document.documentElement.dataset.theme = event.newValue;
+    onChange();
+  };
+  window.addEventListener("storage", handler);
+  return () => window.removeEventListener("storage", handler);
 }
 
 // ---------- Accent color, spacing and text size (saved with the other settings) ----------

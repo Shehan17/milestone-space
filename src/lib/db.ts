@@ -1,3 +1,5 @@
+import { emit } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import Database from "@tauri-apps/plugin-sql";
 import type {
   Client,
@@ -31,11 +33,45 @@ const DB_URL = import.meta.env.DEV ? "sqlite:tracker-dev.db" : "sqlite:tracker.d
 
 let dbPromise: Promise<Database> | null = null;
 
+/** Sent to every window shortly after any write, from any window. The Today widget follows it. */
+export const DB_CHANGED = "db-changed";
+let changedTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** One db-changed for a burst of writes (an action often runs several). */
+function announceChange() {
+  clearTimeout(changedTimer);
+  changedTimer = setTimeout(() => emit(DB_CHANGED).catch((e) => console.error("db-changed:", e)), 200);
+}
+
 async function open(): Promise<Database> {
   // Foreign keys are enabled on every connection by default (sqlx).
   const db = await Database.load(DB_URL);
-  await migrate(db);
+  if (getCurrentWindow().label === "main") await migrate(db);
+  else await waitForMigrations(db);
+  const execute = db.execute.bind(db);
+  db.execute = async (...args) => {
+    const result = await execute(...args);
+    announceChange();
+    return result;
+  };
+  // The other windows reload too, e.g. the widget after a restore (the main window opens the database again).
+  announceChange();
   return db;
+}
+
+/**
+ * The other windows (quick capture, the Today widget) often open the database at the same moment as
+ * the main window, at startup. Two windows running the same migration would apply it twice, so only
+ * the main window migrates and the others wait until it's done.
+ */
+async function waitForMigrations(db: Database) {
+  const STEP_MS = 250;
+  for (let waited = 0; ; waited += STEP_MS) {
+    const [{ user_version: version }] = await db.select<{ user_version: number }[]>("PRAGMA user_version");
+    if (version >= MIGRATIONS.length) return;
+    if (waited >= 60_000) throw new Error("The database is still being updated. Open MilestoneSpace and try again.");
+    await new Promise((resolve) => setTimeout(resolve, STEP_MS));
+  }
 }
 
 /** Runs the migrations this database hasn't had yet (see migrations.ts). */
@@ -206,7 +242,7 @@ export async function updateProject(id: number, input: ProjectInput): Promise<vo
   );
 }
 
-/** Pins a project to the dashboard (pinned_at = now) or unpins it (NULL). */
+/** Pins a project to the Today page (pinned_at = now) or unpins it (NULL). */
 export async function setProjectPinned(id: number, pinned: boolean): Promise<void> {
   const db = await getDb();
   await db.execute(
@@ -271,7 +307,7 @@ export async function deleteMilestone(id: number): Promise<void> {
 const TASK_SELECT = `
   SELECT t.*, p.name AS project_name, p.color AS project_color, m.title AS milestone_title
   FROM tasks t
-  JOIN projects p ON p.id = t.project_id
+  LEFT JOIN projects p ON p.id = t.project_id
   LEFT JOIN milestones m ON m.id = t.milestone_id`;
 
 /** All tasks, or only one project's when projectId is given. Open first, then by due date. */
@@ -287,16 +323,21 @@ export async function getTasks(projectId?: number): Promise<Task[]> {
   return toBool(rows);
 }
 
-/** Values in column order: project_id, milestone_id, title, priority, due_date, status, is_done. */
+/**
+ * Values in column order: project_id, milestone_id, title, priority, due_date, status, is_done.
+ * A Misc task (no project) keeps only its title, priority and done state.
+ */
 function taskValues(input: TaskInput) {
+  const misc = input.project_id === null;
+  const status = misc && input.status === "in_progress" ? "todo" : input.status;
   return [
     input.project_id,
-    input.milestone_id,
+    misc ? null : input.milestone_id,
     input.title.trim(),
     input.priority,
-    dateOrNull(input.due_date),
-    input.status,
-    input.status === "done" ? 1 : 0, // is_done always follows status
+    misc ? null : dateOrNull(input.due_date),
+    status,
+    status === "done" ? 1 : 0, // is_done always follows status
   ];
 }
 

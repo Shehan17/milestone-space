@@ -10,3 +10,8 @@ export function openFolder(path: string): Promise<void> {
 export function openInVsCode(path: string): Promise<void> {
   return invoke("open_in_vscode", { path });
 }
+
+/** Brings the main window to the front, on `path` if given (the open_main command, used by the Today widget). */
+export function openInMain(path?: string): Promise<void> {
+  return invoke("open_main", { path: path ?? null });
+}

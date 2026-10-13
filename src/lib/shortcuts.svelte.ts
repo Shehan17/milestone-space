@@ -1,13 +1,15 @@
 /**
  * Keyboard shortcuts. One window keydown listener (in +layout.svelte) calls handleGlobalKey:
  * it handles "g then a letter" navigation, "?", "j", "[" and Ctrl+Z itself, then passes other keys
- * to the page that is showing, which registers its own keys with useShortcuts().
+ * to the page that is showing, which registers its own keys with useShortcuts(). "n" on a page
+ * without its own "n" opens the New dialog (QuickAdd.svelte).
  *
  * When adding a shortcut, also add it to shortcutGroups() so the help dialog and the Settings page list it.
  * Task rows handle their own keys (j/k, x, e, t, Delete) in TaskRow.svelte.
  */
 import { goto } from "$app/navigation";
 import { onMount } from "svelte";
+import { openQuickAdd } from "./quickadd.svelte";
 import { quickCaptureKeys } from "./settings.svelte";
 import { toggleSidebar } from "./sidebar.svelte";
 import { undoLatest } from "./toast.svelte";
@@ -65,9 +67,9 @@ export function useShortcuts(map: ShortcutMap) {
 const GO_TO: Record<string, string> = {
   t: "/",
   i: "/inbox",
-  d: "/dashboard",
   p: "/projects",
   a: "/tasks",
+  m: "/misc",
   c: "/clients",
   s: "/settings",
 };
@@ -128,7 +130,7 @@ export function handleGlobalKey(e: KeyboardEvent) {
     return;
   }
 
-  const action = pageShortcuts.at(-1)?.[key];
+  const action = pageShortcuts.at(-1)?.[key] ?? (key === "n" ? () => openQuickAdd() : undefined);
   if (action) {
     e.preventDefault();
     action();
@@ -148,9 +150,9 @@ export const shortcutGroups = (): { title: string; items: ShortcutInfo[] }[] => 
     items: [
       { keys: [["G", "T"]], label: "Today" },
       { keys: [["G", "I"]], label: "Inbox" },
-      { keys: [["G", "D"]], label: "Dashboard" },
       { keys: [["G", "P"]], label: "Projects" },
       { keys: [["G", "A"]], label: "All tasks" },
+      { keys: [["G", "M"]], label: "Misc" },
       { keys: [["G", "C"]], label: "Clients" },
       { keys: [["G", "S"]], label: "Settings" },
     ],
@@ -159,8 +161,10 @@ export const shortcutGroups = (): { title: string; items: ShortcutInfo[] }[] => 
     title: "Anywhere",
     items: [
       { keys: [quickCaptureKeys().split("+")], label: "Quick capture to Inbox (even when the app is hidden)" },
+      { keys: [["←"], ["→"]], label: "In quick capture or the New dialog: what to add (Inbox, Today, project task, Misc)" },
+      { keys: [["↑"], ["↓"]], label: "In quick capture or the New dialog: previous / next project for the task" },
       { keys: [["?"]], label: "Show keyboard shortcuts" },
-      { keys: [["N"]], label: "New task / project / client / inbox item (on its page)" },
+      { keys: [["N"]], label: "New: the page's own (task, project, client, inbox item), else the New dialog" },
       { keys: [["J"]], label: "Focus the first task" },
       { keys: [["Ctrl", "Z"]], label: "Undo the last delete (while its message shows)" },
       { keys: [["["]], label: "Collapse or expand the sidebar" },

@@ -21,13 +21,13 @@
 
 <svelte:element
   this={toggle ? "label" : "div"}
-  class="block px-4 py-3 transition-colors duration-150 {disabled ? 'opacity-50' : ''} {toggle && !disabled
+  class="block px-5 py-4 transition-colors duration-150 {disabled ? 'opacity-50' : ''} {toggle && !disabled
     ? 'cursor-pointer hover:bg-hover'
     : ''}"
 >
   <div class="flex items-center justify-between gap-6">
     <div class="min-w-0">
-      <p class="text-sm text-fg">{label}</p>
+      <p class="text-sm font-medium text-strong">{label}</p>
       {#if description}<p class="text-xs text-faint">{description}</p>{/if}
     </div>
     {#if children}<div class="flex shrink-0 flex-wrap items-center justify-end gap-2">{@render children()}</div>{/if}

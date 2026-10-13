@@ -11,12 +11,12 @@
   import PageHeader from "$lib/components/PageHeader.svelte";
   import ProgressBar from "$lib/components/ProgressBar.svelte";
   import ProjectDetails from "$lib/components/ProjectDetails.svelte";
+  import ProjectAvatar from "$lib/components/ProjectAvatar.svelte";
   import ProjectDot from "$lib/components/ProjectDot.svelte";
   import ProjectForm, { emptyProject } from "$lib/components/ProjectForm.svelte";
   import ProjectLinks from "$lib/components/ProjectLinks.svelte";
   import ProjectNotes from "$lib/components/ProjectNotes.svelte";
   import Skeleton from "$lib/components/Skeleton.svelte";
-  import StatusBadge from "$lib/components/StatusBadge.svelte";
   import Tabs from "$lib/components/Tabs.svelte";
   import TaskBoard from "$lib/components/TaskBoard.svelte";
   import TaskForm, { emptyTask } from "$lib/components/TaskForm.svelte";
@@ -41,12 +41,14 @@
     updateProject,
     updateTask,
   } from "$lib/db";
-  import { todayString } from "$lib/dates";
+  import { formatLongDate, todayString } from "$lib/dates";
   import { ms } from "$lib/motion";
+  import { onDataChanged } from "$lib/quickadd.svelte";
   import { openFolder, openInVsCode } from "$lib/system";
   import { useShortcuts } from "$lib/shortcuts.svelte";
   import { toast } from "$lib/toast.svelte";
   import {
+    STATUS_LABELS,
     TYPE_LABELS,
     type Client,
     type Milestone,
@@ -87,8 +89,10 @@
     untrack(() => load(id));
   });
 
+  onDataChanged(reload);
+
   let doneTasks = $derived(tasks.filter((t) => t.is_done).length);
-  let doneMilestones = $derived(milestones.filter((m) => m.is_done).length);
+  let openTasks = $derived(tasks.length - doneTasks);
 
   // ----- Tabs: in the address (?tab=tasks, so links can open one and Back returns to it),
   // and remembered per project (a display preference, so localStorage). -----
@@ -110,6 +114,12 @@
     }
     return "overview";
   }
+
+  // A link to another tab of the open project (e.g. a task clicked in the Today widget) switches to it.
+  $effect(() => {
+    const fromUrl = page.url.searchParams.get("tab");
+    if (isTab(fromUrl) && untrack(() => tab) !== fromUrl) tab = fromUrl;
+  });
 
   function setTab(next: Tab) {
     tab = next;
@@ -133,16 +143,6 @@
       .filter((u) => !u.item.is_done && u.item.due_date)
       .sort((a, b) => a.item.due_date!.localeCompare(b.item.due_date!))
   );
-
-  /** The nearest open date: the project deadline or an upcoming item, whichever comes first. */
-  let nextDeadline = $derived.by(() => {
-    const first = upcoming[0];
-    const projectDue = project && project.status !== "completed" ? project.deadline : null;
-    if (projectDue && (!first || projectDue <= first.item.due_date!)) {
-      return { title: "Project deadline", date: projectDue };
-    }
-    return first ? { title: first.item.title, date: first.item.due_date } : null;
-  });
 
   /** Checking an item in Up next makes it disappear, so it comes with Undo. */
   async function completeUpcoming(u: UpcomingItem) {
@@ -170,7 +170,12 @@
     return { done: linked.filter((t) => t.is_done).length, total: linked.length };
   }
 
-  let openMilestones = $derived(milestones.filter((m) => !m.is_done));
+  /** The first milestone not reached yet, in date order (no date last). */
+  let nextMilestone = $derived(
+    milestones
+      .filter((m) => !m.is_done)
+      .sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999") || a.id - b.id)[0] ?? null
+  );
 
   async function openPath(action: (path: string) => Promise<void>, path: string) {
     try {
@@ -215,7 +220,7 @@
     const wasPinned = !!project.pinned_at;
     await setProjectPinned(projectId, !wasPinned);
     await reload();
-    toast.success(wasPinned ? "Unpinned from the Dashboard" : "Pinned to the Dashboard");
+    toast.success(wasPinned ? "Unpinned" : "Pinned to Today");
   }
 
   async function removeProject() {
@@ -388,265 +393,294 @@
   });
 </script>
 
-{#snippet milestoneRow(m: Milestone, actions: boolean)}
-  {@const progress = milestoneProgress(m.id)}
-  <div class="group list-row">
-    <input
-      type="checkbox"
-      class="checkbox"
-      checked={m.is_done}
-      onchange={() => toggleMilestone(m)}
-      aria-label="Mark {m.title} as reached"
-    />
-    <button type="button" class="min-w-0 flex-1 cursor-pointer text-left" onclick={() => openEditMilestone(m)}>
-      <p class="truncate text-sm {m.is_done ? 'text-faint line-through' : 'text-fg'}">{m.title}</p>
-      {#if m.description}
-        <p class="truncate text-xs text-faint">{m.description}</p>
-      {/if}
-    </button>
-    <div class="hidden w-32 shrink-0 items-center gap-2 md:flex">
-      {#if progress.total > 0}
-        <ProgressBar done={progress.done} total={progress.total} />
-        <span class="text-xs text-faint tabular-nums">{progress.done}/{progress.total}</span>
-      {/if}
-    </div>
-    <div class="w-24 shrink-0 text-right"><DeadlineLabel date={m.due_date} done={m.is_done} /></div>
-    {#if actions}
-      <div class="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-        <button type="button" class="icon-btn" aria-label="Add task to {m.title}" title="Add task" onclick={() => openNewTask(m.id)}>
-          <Icon name="plus" size={14} />
-        </button>
-        <button type="button" class="icon-btn" aria-label="Edit milestone" title="Edit" onclick={() => openEditMilestone(m)}>
-          <Icon name="edit" size={14} />
-        </button>
-        <button
-          type="button"
-          class="icon-btn icon-btn-danger"
-          aria-label="Delete milestone"
-          title="Delete"
-          onclick={() => (milestoneToDelete = m)}
-        >
-          <Icon name="trash" size={14} />
-        </button>
-      </div>
-    {/if}
-  </div>
+{#snippet taskCount(done: number, total: number)}
+  {done} of {total} {total === 1 ? "task" : "tasks"} done
 {/snippet}
 
-<PageHeader title={project?.name ?? ""}>
-  {#snippet leading()}
-    <a href="/projects" class="icon-btn -ml-1.5" aria-label="Back to Projects" title="Back to Projects">
-      <Icon name="back" size={18} />
-    </a>
-    {#if project}<ProjectDot color={project.color} size={10} />{/if}
-  {/snippet}
-  {#snippet meta()}
-    {#if project}
-      <p class="flex min-w-0 items-center gap-2 text-xs text-faint">
+{#if project}
+  <PageHeader title={project.name} back={{ href: "/projects", label: "Projects" }}>
+    {#snippet leading()}
+      <ProjectAvatar name={project!.name} color={project!.color} size={44} />
+    {/snippet}
+    {#snippet meta()}
+      <p class="flex min-w-0 flex-wrap items-center gap-x-1.5 text-ui text-muted">
         <span class="truncate">
-          {TYPE_LABELS[project.type]}{#if project.client_name}&nbsp;· {project.client_name}{/if}
+          {TYPE_LABELS[project!.type]}{#if project!.client_name}&nbsp;· {project!.client_name}{/if}
         </span>
-        <StatusBadge status={project.status} />
-        {#if project.deadline}
-          <span class="inline-flex shrink-0 items-center gap-1" title="Project deadline">
-            <Icon name="calendar" size={12} /><DeadlineLabel date={project.deadline} done={project.status === "completed"} />
+        <span aria-hidden="true">·</span>
+        <span class={project!.status === "active" ? "text-accent-text" : ""}>{STATUS_LABELS[project!.status]}</span>
+        {#if project!.deadline}
+          <span aria-hidden="true">·</span>
+          <span class="inline-flex items-center gap-1" title="Project deadline">
+            Due <DeadlineLabel date={project!.deadline} done={project!.status === "completed"} />
           </span>
         {/if}
       </p>
-    {/if}
-  {/snippet}
-  {#snippet actions()}
-    {#if project}
-      {#if project.local_path}
-        {@const path = project.local_path}
-        <button type="button" class="btn btn-ghost px-2 xl:px-3" title="Open {path} in Explorer (O)" onclick={() => openPath(openFolder, path)}>
-          <Icon name="folder" size={14} /><span class="hidden xl:inline">Open folder</span>
+    {/snippet}
+    {#snippet actions()}
+      {#if project!.local_path}
+        {@const path = project!.local_path}
+        <button type="button" class="btn btn-ghost px-2.5 xl:px-3.5" title="Open {path} in Explorer (O)" onclick={() => openPath(openFolder, path)}>
+          <Icon name="folder" size={16} /><span class="hidden xl:inline">Open folder</span>
         </button>
-        <button type="button" class="btn btn-ghost px-2 xl:px-3" title="Open {path} in VS Code (V)" onclick={() => openPath(openInVsCode, path)}>
-          <Icon name="code" size={14} /><span class="hidden xl:inline">VS Code</span>
+        <button type="button" class="btn btn-ghost px-2.5 xl:px-3.5" title="Open {path} in VS Code (V)" onclick={() => openPath(openInVsCode, path)}>
+          <Icon name="code" size={16} /><span class="hidden xl:inline">VS Code</span>
         </button>
       {/if}
       <button
         type="button"
-        class="btn btn-ghost px-2 xl:px-3 {project.pinned_at ? 'text-accent-text' : ''}"
-        title={project.pinned_at ? "Remove from the Dashboard" : "Show on the Dashboard"}
-        aria-pressed={!!project.pinned_at}
+        class="btn btn-ghost px-2.5 xl:px-3.5 {project!.pinned_at ? 'text-accent-text' : ''}"
+        title={project!.pinned_at ? "Unpin" : "Pin to Today"}
+        aria-pressed={!!project!.pinned_at}
         onclick={togglePinned}
       >
-        <Icon name="pin" size={14} /><span class="hidden xl:inline">{project.pinned_at ? "Pinned" : "Pin"}</span>
+        <Icon name="pin" size={16} /><span class="hidden xl:inline">{project!.pinned_at ? "Pinned" : "Pin"}</span>
       </button>
       <button type="button" class="btn btn-secondary" title="Edit project (E)" onclick={openProjectEdit}>
-        <Icon name="edit" size={14} />Edit
+        <Icon name="edit" size={15} />Edit
       </button>
-    {/if}
-  {/snippet}
-</PageHeader>
+      <button type="button" class="btn btn-primary btn-lg h-10" title="New task (N)" onclick={() => openNewTask()}>
+        <Icon name="plus" size={18} />Add task
+      </button>
+    {/snippet}
+  </PageHeader>
 
-{#if project}
-  <div class="page space-y-5 py-6">
-    <Tabs
-      options={[
-        { value: "overview", label: "Overview" },
-        { value: "tasks", label: "Tasks", count: tasks.length },
-        { value: "milestones", label: "Milestones", count: milestones.length },
-        { value: "info", label: "Info" },
-      ]}
-      value={tab}
-      onchange={setTab}
-      label="Project sections"
-    />
+  <div class="page">
+    <div class="mt-5.5">
+      <Tabs
+        variant="underline"
+        options={[
+          { value: "overview", label: "Overview" },
+          { value: "tasks", label: "Tasks", count: openTasks || "" },
+          { value: "milestones", label: "Milestones", count: milestones.length || "" },
+          { value: "info", label: "Notes & links" },
+        ]}
+        value={tab}
+        onchange={setTab}
+        label="Project sections"
+      />
+    </div>
+  </div>
 
+  <div class="page space-y-5 pt-6 pb-12">
     {#if tab === "overview"}
-      <div class="grid gap-3 sm:grid-cols-3">
-        <div class="card px-4 py-3">
-          <p class="text-xs text-faint">Tasks done</p>
-          <p class="mt-1 text-2xl font-semibold text-strong tabular-nums">
-            {doneTasks}<span class="text-base font-normal text-faint">/{tasks.length}</span>
+      <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-3.5">
+        <div class="card flex flex-col gap-3 p-4.5">
+          <p class="text-ui text-muted">Progress</p>
+          <p class="text-[1.875rem] leading-9 font-semibold text-strong tabular-nums">
+            {tasks.length > 0 ? Math.round((doneTasks / tasks.length) * 100) : 0}%
           </p>
-          <div class="mt-2 flex"><ProgressBar done={doneTasks} total={tasks.length} color={project.color} /></div>
+          <div class="flex"><ProgressBar size="md" done={doneTasks} total={tasks.length} color={project.color} /></div>
+          <p class="text-xs text-faint">{@render taskCount(doneTasks, tasks.length)}</p>
         </div>
-        <div class="card px-4 py-3">
-          <p class="text-xs text-faint">Milestones reached</p>
-          <p class="mt-1 text-2xl font-semibold text-strong tabular-nums">
-            {doneMilestones}<span class="text-base font-normal text-faint">/{milestones.length}</span>
-          </p>
-          <div class="mt-2 flex"><ProgressBar done={doneMilestones} total={milestones.length} /></div>
-        </div>
-        <div class="card min-w-0 px-4 py-3">
-          <p class="text-xs text-faint">Next deadline</p>
-          {#if nextDeadline}
-            <p class="mt-1 truncate text-sm font-medium text-strong">{nextDeadline.title}</p>
-            <DeadlineLabel date={nextDeadline.date} />
+
+        <div class="card flex flex-col gap-1.5 p-4.5">
+          <p class="text-ui text-muted">Next milestone</p>
+          {#if nextMilestone}
+            {@const progress = milestoneProgress(nextMilestone.id)}
+            <button
+              type="button"
+              class="cursor-pointer truncate text-left text-lg font-semibold text-strong hover:text-accent-text-strong"
+              onclick={() => setTab("milestones")}
+            >
+              {nextMilestone.title}
+            </button>
+            <DeadlineLabel date={nextMilestone.due_date} empty="No date" />
+            <p class="mt-auto pt-2 text-xs text-faint">{@render taskCount(progress.done, progress.total)}</p>
           {:else}
-            <p class="mt-1 text-sm text-faint">Nothing scheduled</p>
+            <p class="text-lg font-semibold text-strong">{milestones.length ? "All reached" : "None yet"}</p>
+            <button type="button" class="link mt-auto self-start pt-2 text-xs" onclick={openNewMilestone}>Add a milestone</button>
           {/if}
         </div>
+
+        <div class="card flex flex-col gap-1.5 p-4.5">
+          <p class="text-ui text-muted">Project deadline</p>
+          {#if project.deadline}
+            <p class="text-lg font-semibold text-strong">{formatLongDate(project.deadline)}</p>
+            <DeadlineLabel date={project.deadline} done={project.status === "completed"} />
+          {:else}
+            <p class="text-lg font-semibold text-strong">No deadline</p>
+            <button type="button" class="link self-start text-xs" onclick={openProjectEdit}>Set one</button>
+          {/if}
+          <p class="mt-auto pt-2 text-ui text-muted">{openTasks} {openTasks === 1 ? "task" : "tasks"} still open</p>
+        </div>
       </div>
 
-      <div class="grid gap-5 lg:grid-cols-2">
-        <section class="card">
-          <div class="card-header">
-            <h2 class="card-title">Up next</h2>
-            <button type="button" class="btn btn-ghost btn-sm" onclick={() => setTab("tasks")}>All tasks</button>
-          </div>
-          <div class="divide-y divide-line">
-            {#each upcoming.slice(0, 5) as u (u.kind + u.item.id)}
-              <div class="list-row">
-                <input
-                  type="checkbox"
-                  class="checkbox"
-                  checked={false}
-                  onchange={() => completeUpcoming(u)}
-                  aria-label="Mark {u.item.title} as done"
-                />
-                <span class="text-faint" title={u.kind === "task" ? "Task" : "Milestone"}>
-                  <Icon name={u.kind === "task" ? "tasks" : "flag"} size={14} />
-                </span>
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title">Up next in this project</h2>
+          <button type="button" class="btn btn-ghost btn-sm" onclick={() => setTab("tasks")}>All tasks</button>
+        </div>
+        <div class="divide-y divide-line">
+          {#each upcoming.slice(0, 5) as u (u.kind + u.item.id)}
+            {@const edit = () => (u.kind === "task" ? openEditTask(u.item) : openEditMilestone(u.item))}
+            <div class="group relative list-row">
+              <span class="text-faint" title={u.kind === "task" ? "Task" : "Milestone"}>
+                <Icon name={u.kind === "task" ? "tasks" : "flag"} size={16} />
+              </span>
+              <button
+                type="button"
+                class="min-w-0 flex-1 cursor-pointer truncate text-left text-sm text-fg hover:text-accent-text-strong"
+                onclick={edit}
+              >
+                {u.item.title}
+              </button>
+              <DeadlineLabel date={u.item.due_date} />
+              <div class="row-actions">
+                <button type="button" class="icon-btn size-8" aria-label="Edit {u.kind}" title="Edit" onclick={edit}>
+                  <Icon name="edit" size={15} />
+                </button>
                 <button
                   type="button"
-                  class="min-w-0 flex-1 cursor-pointer truncate text-left text-sm text-fg hover:text-accent-text-strong"
-                  onclick={() => (u.kind === "task" ? openEditTask(u.item) : openEditMilestone(u.item))}
+                  class="icon-btn icon-btn-danger size-8"
+                  aria-label="Delete {u.kind}"
+                  title="Delete"
+                  onclick={() => (u.kind === "task" ? removeTask(u.item) : (milestoneToDelete = u.item))}
                 >
-                  {u.item.title}
+                  <Icon name="trash" size={15} />
                 </button>
-                <DeadlineLabel date={u.item.due_date} />
               </div>
-            {:else}
-              <EmptyState
-                compact
-                icon="calendar"
-                message="Nothing scheduled"
-                hint="Tasks and milestones with a due date show up here, nearest first."
-                action={{ label: "Add task", icon: "plus", onclick: () => openNewTask() }}
+              <input
+                type="checkbox"
+                class="check-round ml-2"
+                checked={false}
+                onchange={() => completeUpcoming(u)}
+                aria-label="Mark {u.item.title} as done"
               />
-            {/each}
-          </div>
-        </section>
+            </div>
+          {:else}
+            <EmptyState
+              compact
+              icon="calendar"
+              message="Nothing scheduled"
+              hint="Tasks and milestones with a due date show up here, nearest first."
+              action={{ label: "Add task", icon: "plus", onclick: () => openNewTask() }}
+            />
+          {/each}
+        </div>
+      </section>
 
-        <section class="card">
-          <div class="card-header">
-            <h2 class="card-title">Milestones <span class="count">{doneMilestones}/{milestones.length}</span></h2>
-            <button type="button" class="btn btn-ghost btn-sm" onclick={() => setTab("milestones")}>All milestones</button>
-          </div>
-          <div class="divide-y divide-line">
-            {#each openMilestones.slice(0, 5) as m (m.id)}
-              {@render milestoneRow(m, false)}
-            {:else}
-              <EmptyState
-                compact
-                icon="flag"
-                message={milestones.length ? "Every milestone is reached" : "No milestones yet"}
-                hint={milestones.length ? undefined : "Split the project into steps, each with its own due date."}
-                action={{ label: "Add milestone", icon: "plus", onclick: openNewMilestone }}
-              />
-            {/each}
-          </div>
-        </section>
-      </div>
-
-      <section class="card px-4 py-3">
+      <section class="card px-5 py-4">
         <h2 class="card-title mb-1.5">About</h2>
         {#if project.description}
           <p class="text-sm whitespace-pre-line text-fg">{project.description}</p>
         {:else}
           <button type="button" class="link text-sm" onclick={openProjectEdit}>Add a description</button>
         {/if}
-        <div class="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-t border-line pt-3 text-xs text-faint">
-          <span>Deadline: <DeadlineLabel date={project.deadline} done={project.status === "completed"} empty="none" /></span>
-          <span class="min-w-0 truncate">
-            Folder:
-            {#if project.local_path}
-              <span class="font-mono text-muted">{project.local_path}</span>
-            {:else}
-              <button type="button" class="link" onclick={openProjectEdit}>Set a folder</button>
-            {/if}
-          </span>
-        </div>
+        <p class="mt-3 min-w-0 truncate border-t border-line pt-3 text-xs text-faint">
+          Folder:
+          {#if project.local_path}
+            <span class="font-mono text-muted">{project.local_path}</span>
+          {:else}
+            <button type="button" class="link" onclick={openProjectEdit}>Set a folder</button>
+          {/if}
+        </p>
       </section>
     {:else if tab === "milestones"}
-      <section class="card">
-        <div class="card-header">
-          <h2 class="card-title">Milestones <span class="count">{milestones.length}</span></h2>
-          <button type="button" class="btn btn-ghost btn-sm" onclick={openNewMilestone} title="New milestone (M)">
-            <Icon name="plus" size={12} />Add milestone
-          </button>
-        </div>
-        <div class="divide-y divide-line">
-          {#each milestones as m (m.id)}
-            {@render milestoneRow(m, true)}
-          {:else}
-            <EmptyState
-              icon="flag"
-              message="No milestones yet"
-              hint="Milestones split a project into steps, each with its own due date and tasks."
-              action={{ label: "Add milestone", icon: "plus", primary: true, onclick: openNewMilestone }}
-            />
-          {/each}
-        </div>
-      </section>
-    {:else if tab === "tasks"}
-      <div class="flex flex-wrap items-center gap-3">
-        <Tabs
-          options={[
-            { value: "list", label: "List", icon: "list" },
-            { value: "board", label: "Board", icon: "board" },
-          ]}
-          value={taskView}
-          onchange={setTaskView}
-          label="Task view"
-        />
-        {#if milestones.length > 0}
-          <select class="input input-sm w-52" bind:value={milestoneFilter} aria-label="Filter by milestone">
-            <option value="all">All milestones</option>
-            {#each milestones as m (m.id)}
-              <option value={m.id}>{m.title}</option>
-            {/each}
-            <option value="none">No milestone</option>
-          </select>
-        {/if}
-        <button type="button" class="btn btn-primary btn-sm ml-auto" onclick={() => openNewTask()} title="New task (N)">
-          <Icon name="plus" size={12} />Add task
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-ui text-muted">
+          {milestones.filter((m) => m.is_done).length} of {milestones.length} reached. Click a dot to mark one as reached.
+        </p>
+        <button type="button" class="btn btn-secondary btn-sm" onclick={openNewMilestone} title="New milestone (M)">
+          <Icon name="plus" size={14} />Add milestone
         </button>
+      </div>
+      {#if milestones.length > 0}
+        <ol>
+          {#each milestones as m, i (m.id)}
+            {@const progress = milestoneProgress(m.id)}
+            <li class="flex gap-4">
+              <div class="flex w-6 shrink-0 flex-col items-center">
+                <button
+                  type="button"
+                  class="mt-5 size-4 shrink-0 cursor-pointer rounded-full border-3 transition-colors duration-150 {m.is_done
+                    ? 'border-accent bg-accent'
+                    : 'border-faint/60 bg-canvas hover:border-accent'}"
+                  aria-pressed={m.is_done}
+                  aria-label={m.is_done ? `Mark ${m.title} as not reached` : `Mark ${m.title} as reached`}
+                  title={m.is_done ? "Reached" : "Mark as reached"}
+                  onclick={() => toggleMilestone(m)}
+                ></button>
+                {#if i < milestones.length - 1}<span class="w-0.5 flex-1 bg-line"></span>{/if}
+              </div>
+              <div class="group card mb-3 flex min-w-0 flex-1 flex-col gap-2.5 px-4.5 py-4">
+                <div class="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    class="min-w-0 cursor-pointer truncate text-left font-semibold {m.is_done ? 'text-faint line-through' : 'text-strong'}"
+                    onclick={() => openEditMilestone(m)}
+                  >
+                    {m.title}
+                  </button>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                      <button type="button" class="icon-btn" aria-label="Add task to {m.title}" title="Add task" onclick={() => openNewTask(m.id)}>
+                        <Icon name="plus" size={16} />
+                      </button>
+                      <button type="button" class="icon-btn" aria-label="Edit milestone" title="Edit" onclick={() => openEditMilestone(m)}>
+                        <Icon name="edit" size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn icon-btn-danger"
+                        aria-label="Delete milestone"
+                        title="Delete"
+                        onclick={() => (milestoneToDelete = m)}
+                      >
+                        <Icon name="trash" size={16} />
+                      </button>
+                    </div>
+                    <DeadlineLabel date={m.due_date} done={m.is_done} />
+                  </div>
+                </div>
+                {#if m.description}<p class="-mt-1.5 text-xs text-faint">{m.description}</p>{/if}
+                <div class="flex items-center gap-2.5">
+                  <ProgressBar done={progress.done} total={progress.total} color={project.color} />
+                  <span class="text-xs text-faint tabular-nums">{progress.done}/{progress.total} tasks</span>
+                </div>
+              </div>
+            </li>
+          {/each}
+        </ol>
+      {:else}
+        <div class="card">
+          <EmptyState
+            icon="flag"
+            message="No milestones yet"
+            hint="Milestones split a project into steps, each with its own due date and tasks."
+            action={{ label: "Add milestone", icon: "plus", primary: true, onclick: openNewMilestone }}
+          />
+        </div>
+      {/if}
+    {:else if tab === "tasks"}
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-ui text-muted">
+          {#if taskView === "board"}
+            Drag cards between columns to change their status.
+          {:else if visibleTasks.length > 0}
+            {visibleTasks.filter((t) => t.is_done).length} of {visibleTasks.length} done.
+          {/if}
+        </p>
+        <div class="flex flex-wrap items-center gap-2.5">
+          {#if milestones.length > 0}
+            <select class="input input-sm w-52" bind:value={milestoneFilter} aria-label="Filter by milestone">
+              <option value="all">All milestones</option>
+              {#each milestones as m (m.id)}
+                <option value={m.id}>{m.title}</option>
+              {/each}
+              <option value="none">No milestone</option>
+            </select>
+          {/if}
+          <Tabs
+            options={[
+              { value: "list", label: "List" },
+              { value: "board", label: "Board" },
+            ]}
+            value={taskView}
+            onchange={setTaskView}
+            label="Task view"
+          />
+        </div>
       </div>
 
       {#if taskView === "board"}
@@ -658,46 +692,41 @@
           ondelete={removeTask}
         />
       {:else}
-        <section class="card">
-          <div class="card-header">
-            <h2 class="card-title">Tasks <span class="count">{visibleTasks.length}</span></h2>
-            {#if visibleTasks.length > 0}
-              <span class="text-xs text-faint tabular-nums">{visibleTasks.filter((t) => t.is_done).length} done</span>
-            {/if}
-          </div>
-          <div class="divide-y divide-line">
-            {#each visibleTasks as task (task.id)}
-              <div animate:flip={{ duration: ms(200) }}>
-                <TaskRow {task} ontoggle={toggleTask} onedit={openEditTask} ondelete={removeTask} onplan={togglePlanned} />
-              </div>
+        <section class="card divide-y divide-line">
+          {#each visibleTasks as task (task.id)}
+            <div animate:flip={{ duration: ms(200) }}>
+              <TaskRow {task} ontoggle={toggleTask} onedit={openEditTask} ondelete={removeTask} onplan={togglePlanned} />
+            </div>
+          {:else}
+            {#if tasks.length === 0}
+              <EmptyState
+                icon="tasks"
+                message="No tasks yet"
+                hint="Break the project into tasks you can check off."
+                action={{ label: "Add your first task", icon: "plus", primary: true, onclick: () => openNewTask() }}
+              />
             {:else}
-              {#if tasks.length === 0}
-                <EmptyState
-                  icon="tasks"
-                  message="No tasks yet"
-                  hint="Break the project into tasks you can check off."
-                  action={{ label: "Add your first task", icon: "plus", primary: true, onclick: () => openNewTask() }}
-                />
-              {:else}
-                <EmptyState
-                  message="No tasks in this milestone"
-                  action={{ label: "Show all tasks", onclick: () => (milestoneFilter = "all") }}
-                />
-              {/if}
-            {/each}
-          </div>
+              <EmptyState
+                message="No tasks in this milestone"
+                action={{ label: "Show all tasks", onclick: () => (milestoneFilter = "all") }}
+              />
+            {/if}
+          {/each}
         </section>
       {/if}
     {:else}
-      <ProjectNotes {projectId} />
-      <div class="grid gap-5 lg:grid-cols-2">
-        <ProjectLinks {projectId} />
-        <ProjectDetails {projectId} />
+      <div class="flex flex-wrap items-start gap-5">
+        <div class="min-w-0 flex-[1_1_27.5rem]"><ProjectNotes {projectId} /></div>
+        <div class="flex min-w-0 flex-[1_1_17.5rem] flex-col gap-5">
+          <ProjectLinks {projectId} />
+          <ProjectDetails {projectId} />
+        </div>
       </div>
     {/if}
   </div>
 {:else if loaded}
-  <div class="page py-6">
+  <PageHeader title="Project not found" back={{ href: "/projects", label: "Projects" }} />
+  <div class="page pt-5 pb-12">
     <div class="card">
       <EmptyState
         icon="projects"
@@ -708,12 +737,13 @@
     </div>
   </div>
 {:else}
-  <div class="page py-6"><div class="card"><Skeleton /></div></div>
+  <div class="page pt-24 pb-12"><div class="card"><Skeleton /></div></div>
 {/if}
 
 <Modal
   open={projectFormOpen}
   title="Edit project"
+  size="lg"
   onclose={() => (projectFormOpen = false)}
   onsubmit={saveProject}
   ondelete={() => {
@@ -779,5 +809,8 @@
   onsubmit={saveTask}
   ondelete={editingTaskId === null ? undefined : deleteEditingTask}
 >
+  {#snippet aside()}
+    {#if project}<span class="flex min-w-0 items-center gap-1.5"><ProjectDot color={project.color} /><span class="truncate">{project.name}</span></span>{/if}
+  {/snippet}
   <TaskForm bind:values={taskDraft} {milestones} />
 </Modal>

@@ -9,6 +9,7 @@ import { isPermissionGranted, requestPermission, sendNotification } from "@tauri
 import { getMilestones, getProjects, getTasks } from "./db";
 import { dayFromToday, formatDate, todayString } from "./dates";
 import { settings } from "./settings.svelte";
+import { MISC_LABEL } from "./types";
 
 /** The last day ("YYYY-MM-DD") the notifications were sent. Per computer, so localStorage. */
 const SENT_KEY = "milestonespace.notified-day";
@@ -60,8 +61,8 @@ async function openDeadlines(): Promise<{ due: Due[]; plannedToday: number }> {
       .filter((m) => !m.is_done && m.due_date && !closed.has(m.project_id))
       .map((m) => ({ title: m.title, kind: "Milestone" as const, project: m.project_name, date: m.due_date! })),
     ...tasks
-      .filter((t) => !t.is_done && t.due_date && !closed.has(t.project_id))
-      .map((t) => ({ title: t.title, kind: "Task" as const, project: t.project_name, date: t.due_date! })),
+      .filter((t) => !t.is_done && t.due_date && (t.project_id === null || !closed.has(t.project_id)))
+      .map((t) => ({ title: t.title, kind: "Task" as const, project: t.project_name ?? MISC_LABEL, date: t.due_date! })),
   ];
   const today = todayString();
   const plannedToday = tasks.filter((t) => !t.is_done && t.planned_for === today).length;

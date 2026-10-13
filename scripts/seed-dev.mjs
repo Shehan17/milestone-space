@@ -190,6 +190,14 @@ const details = [
   { project: "game", label: "Jam deadline", value: "Sunday 23:59 (UTC)" },
 ];
 
+// Misc tasks: small everyday jobs with no project (just a title and a priority; no due date).
+const miscTasks = [
+  { title: "Renew the domain for the portfolio", priority: "high" },
+  { title: "Reply to the recruiter email", priority: "medium", plan: 0 },
+  { title: "Update Node and npm on the laptop", priority: "low" },
+  { title: "Back up the phone photos", priority: "low", done: true },
+];
+
 const inboxItems = [
   { text: "Blog post idea: what I learned moving to Svelte 5 runes", minutesAgo: 25 },
   { text: "Ask Northwind if they want a newsletter signup", minutesAgo: 180 },
@@ -223,6 +231,14 @@ try {
   if (added.length > 0) console.log(`Added projects: ${added.join(", ")}`);
   else console.log(`All sample projects are already in ${DB_FILE} (use "npm run seed:dev -- --reset" to start over).`);
 
+  for (const t of miscTasks) {
+    if (has("SELECT 1 FROM tasks WHERE project_id IS NULL AND title = ?", t.title)) continue;
+    const status = t.done ? "done" : "todo";
+    insert(
+      `INSERT INTO tasks (project_id, title, priority, status, is_done, planned_for) VALUES (NULL, ?, ?, ?, ?, ?)`,
+      t.title, t.priority, status, status === "done" ? 1 : 0, due(t.plan ?? null)
+    );
+  }
   for (const item of inboxItems) {
     if (has("SELECT 1 FROM inbox_items WHERE text = ?", item.text)) continue;
     insert("INSERT INTO inbox_items (text, created_at) VALUES (?, datetime('now', ?))", item.text, `-${item.minutesAgo} minutes`);

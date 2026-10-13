@@ -82,9 +82,16 @@
   <input class="input" bind:value={values.name} required data-autofocus placeholder="e.g. Website redesign" />
 </Field>
 
-<div>
-  <span class="mb-1 block text-xs font-medium text-muted">Type</span>
-  <Tabs options={typeOptions} bind:value={values.type} onchange={onTypeChange} label="Project type" />
+<!-- Type and status share a row (they wrap in a narrow dialog). -->
+<div class="flex flex-wrap gap-x-4 gap-y-4">
+  <div>
+    <span class="mb-1 block text-xs font-medium text-muted">Type</span>
+    <Tabs options={typeOptions} bind:value={values.type} onchange={onTypeChange} label="Project type" />
+  </div>
+  <div>
+    <span class="mb-1 block text-xs font-medium text-muted">Status</span>
+    <Tabs options={statusOptions} bind:value={values.status} label="Project status" />
+  </div>
 </div>
 
 {#if values.type === "client"}
@@ -124,11 +131,6 @@
   </Field>
 {/if}
 
-<div>
-  <span class="mb-1 block text-xs font-medium text-muted">Status</span>
-  <Tabs options={statusOptions} bind:value={values.status} label="Project status" />
-</div>
-
 <Field label="Deadline" for="{uid}-deadline">
   <DateInput id="{uid}-deadline" bind:value={values.deadline} />
 </Field>
@@ -143,5 +145,5 @@
 </Field>
 
 <Field label="Description">
-  <textarea class="input" rows="3" bind:value={values.description} placeholder="What is this project about?"></textarea>
+  <textarea class="input" rows="2" bind:value={values.description} placeholder="What is this project about?"></textarea>
 </Field>

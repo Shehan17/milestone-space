@@ -5,7 +5,7 @@ const DAY_MS = 86_400_000;
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** A Date's local day as "YYYY-MM-DD" (toISOString would give the UTC date). */
-function toDateString(d: Date): string {
+export function toDateString(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
@@ -144,4 +144,10 @@ export function deadlineTone(days: number): DeadlineTone {
   if (days < 0) return "overdue";
   if (days <= 3) return "soon";
   return "normal";
+}
+
+/** The parts of a date for a calendar block: "OCT" and 14. */
+export function calendarParts(date: string): { month: string; day: number } {
+  const d = parseDate(date);
+  return { month: MONTHS[d.getMonth()].toUpperCase(), day: d.getDate() };
 }

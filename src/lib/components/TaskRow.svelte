@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { todayString } from "$lib/dates";
-  import type { Task } from "$lib/types";
+  import { MISC_COLOR, MISC_LABEL, type Task } from "$lib/types";
   import DeadlineLabel from "./DeadlineLabel.svelte";
   import Icon from "./Icon.svelte";
   import PriorityBadge from "./PriorityBadge.svelte";
@@ -24,6 +24,9 @@
   let { task, showProject = false, ontoggle, onedit, ondelete, onplan }: Props = $props();
 
   let plannedToday = $derived(task.planned_for === todayString());
+
+  // Finished tasks step back: dimmed until the row is hovered or focused.
+  const dim = "opacity-50 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100";
 
   // ----- Keyboard: rows are focusable (j/k or arrows to move, see shortcuts.svelte.ts) -----
 
@@ -80,67 +83,75 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_static_element_interactions -->
 <div
-  class="group list-row outline-none focus-visible:bg-hover focus-visible:shadow-[inset_2px_0_0_var(--accent)]"
+  class="group relative list-row outline-none focus-visible:bg-hover focus-visible:shadow-[inset_2px_0_0_var(--accent)]"
   tabindex="0"
   data-task-row
   data-task-id={task.id}
   aria-label={task.title}
   {onkeydown}
 >
-  <input
-    type="checkbox"
-    class="checkbox"
-    checked={task.is_done}
-    onchange={() => ontoggle(task)}
-    aria-label="Mark {task.title} as done"
-  />
-
-  <div class="min-w-0 flex-1">
+  <div class="min-w-0 flex-1 {task.is_done ? dim : ''}">
     <p class="truncate text-sm {task.is_done ? 'text-faint line-through' : 'text-fg'}">
       {task.title}
     </p>
     {#if showProject || task.milestone_title || task.status === "in_progress"}
-      <p class="flex items-center gap-2 truncate text-xs text-faint">
+      <p class="flex items-center gap-1.5 truncate text-xs text-faint">
         {#if task.status === "in_progress"}
           <span class="inline-flex shrink-0 items-center gap-1 text-accent-text">
             <span class="size-1.5 rounded-full bg-current"></span>In progress
           </span>
         {/if}
         {#if showProject}
-          <a href="/projects/{task.project_id}?tab=tasks" class="inline-flex min-w-0 items-center gap-1.5 hover:text-fg">
-            <ProjectDot color={task.project_color} size={7} /><span class="truncate">{task.project_name}</span>
+          <!-- A Misc task (no project) links to the Misc page instead. -->
+          <a
+            href={task.project_id === null ? "/misc" : `/projects/${task.project_id}?tab=tasks`}
+            class="inline-flex min-w-0 items-center gap-1.5 hover:text-fg"
+          >
+            <ProjectDot color={task.project_color ?? MISC_COLOR} /><span class="truncate">{task.project_name ?? MISC_LABEL}</span>
           </a>
         {/if}
         {#if task.milestone_title}
-          <span class="inline-flex min-w-0 items-center gap-1"><Icon name="flag" size={11} /><span class="truncate">{task.milestone_title}</span></span>
+          {#if showProject}<span aria-hidden="true">·</span>{/if}
+          <span class="inline-flex min-w-0 items-center gap-1">
+            {#if !showProject}<Icon name="flag" size={12} />{/if}<span class="truncate">{task.milestone_title}</span>
+          </span>
         {/if}
       </p>
     {/if}
   </div>
 
-  <div class="w-12 shrink-0"><PriorityBadge priority={task.priority} /></div>
-  <div class="w-24 shrink-0 text-right"><DeadlineLabel date={task.due_date} done={task.is_done} /></div>
+  {#if !task.is_done}<PriorityBadge priority={task.priority} />{/if}
+  <div class="w-22 shrink-0 text-right {task.is_done ? dim : ''}"><DeadlineLabel date={task.due_date} done={task.is_done} /></div>
 
-  {#if onplan}
-    <!-- Always visible while the task is on today's list, so the list membership is easy to see. -->
-    <button
-      type="button"
-      class="icon-btn {plannedToday ? 'text-accent-text' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}"
-      aria-label={plannedToday ? "Remove from Today" : "Add to Today"}
-      title={plannedToday ? "Remove from Today (T)" : "Add to Today (T)"}
-      aria-pressed={plannedToday}
-      onclick={() => onplan(task)}
-    >
-      <Icon name="sun" size={14} />
+  <!-- Float over the priority and due date on hover or keyboard focus (T, E and Delete also work on
+       a focused row). The sun is in the accent color while the task is on today's list. -->
+  <div class="row-actions">
+    {#if onplan}
+      <button
+        type="button"
+        class="icon-btn size-8 {plannedToday ? 'text-accent-text hover:text-accent-text' : ''}"
+        aria-label={plannedToday ? "Remove from Today" : "Add to Today"}
+        title={plannedToday ? "Remove from Today (T)" : "Add to Today (T)"}
+        aria-pressed={plannedToday}
+        onclick={() => onplan(task)}
+      >
+        <Icon name="sun" size={16} />
+      </button>
+    {/if}
+    <button type="button" class="icon-btn size-8" aria-label="Edit task" title="Edit (E)" onclick={() => onedit(task)}>
+      <Icon name="edit" size={15} />
     </button>
-  {/if}
-
-  <div class="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-    <button type="button" class="icon-btn" aria-label="Edit task" title="Edit (E)" onclick={() => onedit(task)}>
-      <Icon name="edit" size={14} />
-    </button>
-    <button type="button" class="icon-btn icon-btn-danger" aria-label="Delete task" title="Delete (Delete)" onclick={() => ondelete(task)}>
-      <Icon name="trash" size={14} />
+    <button type="button" class="icon-btn icon-btn-danger size-8" aria-label="Delete task" title="Delete (Delete)" onclick={() => ondelete(task)}>
+      <Icon name="trash" size={15} />
     </button>
   </div>
+
+  <!-- The done toggle sits at the end of the row. -->
+  <input
+    type="checkbox"
+    class="check-round ml-2 {task.is_done ? dim : ''}"
+    checked={task.is_done}
+    onchange={() => ontoggle(task)}
+    aria-label="Mark {task.title} as done"
+  />
 </div>

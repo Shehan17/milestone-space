@@ -12,26 +12,29 @@ no server, no sync.
 
 ## Features
 
-- **Dashboard**: pinned projects for quick access, plus what's overdue, due this week, and upcoming milestones.
-  Filter by project type.
 - **Projects**: client, personal or study projects, each with a color, status and deadline.
 - **Project page** with tabs:
-  - **Overview**: progress, next deadline and the nearest upcoming tasks and milestones.
+  - **Overview**: progress, the next milestone, the deadline and the nearest upcoming tasks and milestones.
   - **Tasks** and **Milestones**: priorities, due dates, and tasks linked to milestones. Tasks can
     be shown as a list or as a **Kanban board** (To do / In progress / Done) with drag and drop,
-    filtered by milestone.
-  - **Info**: markdown notes that save automatically, links (GitHub, Figma, Drive, store pages,
+    filtered by milestone. Milestones show as a timeline.
+  - **Notes & links**: markdown notes that save automatically, links (GitHub, Figma, Drive, store pages,
     local folders...) that open in your browser or Explorer, and custom label/value details
     with one-click copy.
-- **Today**: pick the tasks you'll do today from all projects; the app opens on this list.
+- **Today**: pick the tasks you'll do today from all projects; the app opens on this list. It also
+  shows what needs attention, pinned projects, what's coming up, and a Getting started checklist.
+- **New** (sidebar button or **N**): add a task for today, an idea for the Inbox, or a project in one line.
 - **Quick capture**: press **Ctrl+Shift+Space** anywhere, even with the app hidden, type an idea
-  and press Enter. It lands in the **Inbox**, where you turn items into tasks later.
+  and press Enter. It lands in the **Inbox**, where you turn items into tasks later. ←/→ send it to
+  Today, a project or Misc instead (↑/↓ pick the project). The box stays open for the next one; Esc closes it.
 - **Project folders**: save each project's local folder and open it in Explorer or VS Code.
 - **Keyboard shortcuts** throughout the app (press **?** to see them).
 - Runs in the tray: closing the window keeps it running, and it can start with Windows.
-- **Tasks**: every task across all projects, filterable by status, priority and project.
+- **All tasks**: every task across all projects, grouped by project and filterable by status,
+  priority and project.
 - **Clients**: optional clients for client projects.
-- **Themes**: two dark and two light color themes, picked from Settings.
+- **Themes**: Aurora (the default: neutral graphite with a blue accent), two more dark and two light
+  color themes, picked from Settings.
 - Friendly deadlines: overdue in red, due within 3 days in orange.
 
 ## Tech stack
@@ -76,6 +79,6 @@ src/
     types.ts         shared types
     theme.ts         color themes
     components/      reusable UI components
-  routes/            pages: dashboard, projects, tasks, clients, settings
+  routes/            pages: today, inbox, projects, tasks, clients, settings
 src-tauri/           Tauri (Rust) app, config and icons
 ```

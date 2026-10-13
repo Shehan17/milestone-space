@@ -170,6 +170,32 @@ export const MIGRATIONS: string[] = [
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
   `,
+
+  // v10: tasks with no project (small one-off tasks). project_id becomes optional; SQLite can't
+  // drop NOT NULL in place, so the table is rebuilt (ids and every column are kept).
+  `
+  CREATE TABLE tasks_new (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id   INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+    milestone_id INTEGER REFERENCES milestones(id) ON DELETE SET NULL,
+    title        TEXT NOT NULL,
+    priority     TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
+    due_date     TEXT,
+    is_done      INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    planned_for  TEXT,
+    status       TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done')),
+    board_order  INTEGER
+  );
+  INSERT INTO tasks_new (id, project_id, milestone_id, title, priority, due_date, is_done, created_at, planned_for, status, board_order)
+  SELECT id, project_id, milestone_id, title, priority, due_date, is_done, created_at, planned_for, status, board_order
+  FROM tasks;
+  DROP TABLE tasks;
+  ALTER TABLE tasks_new RENAME TO tasks;
+  CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+  CREATE INDEX IF NOT EXISTS idx_tasks_milestone ON tasks(milestone_id);
+  CREATE INDEX IF NOT EXISTS idx_tasks_planned ON tasks(planned_for);
+  `,
 ];
 
 /** The full SQL for one migration: one transaction, foreign keys off, bumps user_version. */

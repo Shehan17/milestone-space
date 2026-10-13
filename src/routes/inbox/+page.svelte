@@ -10,10 +10,11 @@
   import { addInboxItem, addTask, deleteInboxItem, getInboxItems, getMilestones, getProjects } from "$lib/db";
   import { timeAgo, todayString } from "$lib/dates";
   import { onInboxChanged, refreshInboxCount } from "$lib/inbox.svelte";
+  import { rememberCapture } from "$lib/quickadd.svelte";
   import { quickCaptureKeys } from "$lib/settings.svelte";
   import { useShortcuts } from "$lib/shortcuts.svelte";
   import { toast } from "$lib/toast.svelte";
-  import type { InboxItem, Milestone, Project, TaskInput } from "$lib/types";
+  import { MISC_LABEL, type InboxItem, type Milestone, type Project, type TaskInput } from "$lib/types";
 
   let items = $state<InboxItem[]>([]);
   let projects = $state<Project[]>([]);
@@ -43,6 +44,7 @@
     event.preventDefault();
     if (!newText.trim()) return;
     await addInboxItem(newText);
+    rememberCapture();
     newText = "";
     await load();
   }
@@ -59,7 +61,7 @@
   // ----- Turn an item into a task -----
   let openProjects = $derived(projects.filter((p) => p.status !== "completed"));
   let converting = $state<InboxItem | null>(null);
-  let draft = $state<TaskInput>(emptyTask(0));
+  let draft = $state<TaskInput>(emptyTask(null));
   let planToday = $state(false);
 
   function openConvert(item: InboxItem) {
@@ -69,34 +71,42 @@
   }
 
   async function saveTask() {
-    if (!converting || !draft.title.trim() || !draft.project_id) return;
+    if (!converting || !draft.title.trim()) return;
     const projectId = draft.project_id;
-    const projectName = projects.find((p) => p.id === projectId)?.name ?? "the project";
+    const projectName = projects.find((p) => p.id === projectId)?.name;
     await addTask(draft, planToday ? todayString() : null);
     await deleteInboxItem(converting.id);
     rememberProject(projectId);
     converting = null;
     await load();
-    toast.success(`Task added to ${projectName}${planToday ? " and Today" : ""}`, {
-      action: { label: "Open", run: () => goto(`/projects/${projectId}?tab=tasks`) },
-    });
+    const where = `${projectName ?? MISC_LABEL}${planToday ? " and Today" : ""}`;
+    const href = projectId !== null ? `/projects/${projectId}?tab=tasks` : "/misc";
+    toast.success(`Task added to ${where}`, { action: { label: "Open", run: () => goto(href) } });
   }
 
   useShortcuts({ n: () => newInput?.focus() });
 </script>
 
-<PageHeader title="Inbox" subtitle="Ideas and tasks captured with {quickCaptureKeys()}, waiting to be sorted" />
+<PageHeader
+  narrow
+  title="Inbox"
+  subtitle="Quick ideas land here. Turn each one into a task when you're ready, or delete it."
+/>
 
-<div class="page space-y-4 py-6">
-  <form class="flex gap-2" onsubmit={add}>
+<div class="page page-narrow space-y-4 pt-5 pb-12">
+  <form
+    class="flex gap-2.5 rounded-item border border-line-strong bg-surface p-2 transition-colors duration-150 focus-within:border-accent"
+    onsubmit={add}
+  >
     <input
       bind:this={newInput}
       bind:value={newText}
-      class="input"
-      placeholder="Add an idea or task… (N)"
+      class="h-10 min-w-0 flex-1 bg-transparent px-2.5 text-sm text-strong outline-none placeholder:text-faint"
+      placeholder="Write an idea or task and press Enter"
       aria-label="New inbox item"
+      title="N"
     />
-    <button type="submit" class="btn btn-primary shrink-0" disabled={!newText.trim()}><Icon name="plus" size={14} />Add</button>
+    <button type="submit" class="btn btn-primary h-10 shrink-0 px-4.5 text-sm" disabled={!newText.trim()}>Add</button>
   </form>
 
   <div class="card divide-y divide-line">
@@ -104,43 +114,43 @@
       <Skeleton />
     {:else}
       {#each items as item (item.id)}
-        <div class="group list-row">
-          <p class="min-w-0 flex-1 text-sm break-words text-fg">{item.text}</p>
-          <span class="shrink-0 text-xs text-faint" title={item.created_at}>{timeAgo(item.created_at)}</span>
+        <div class="group list-row min-h-15 py-2.5">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm break-words text-strong">{item.text}</p>
+            <p class="text-xs text-faint" title={item.created_at}>{timeAgo(item.created_at)}</p>
+          </div>
           <button
             type="button"
             class="btn btn-secondary btn-sm shrink-0"
             onclick={() => openConvert(item)}
-            disabled={openProjects.length === 0}
-            title={openProjects.length === 0 ? "Create a project first" : "Move it into a project as a task"}
+            title="Turn it into a task, in a project or in Misc"
           >
-            <Icon name="tasks" size={12} />Make task
+            Make task
           </button>
           <button
             type="button"
-            class="icon-btn icon-btn-danger"
+            class="icon-btn icon-btn-danger size-8.5"
             aria-label="Delete {item.text}"
             title="Delete"
             onclick={() => remove(item)}
           >
-            <Icon name="trash" size={14} />
+            <Icon name="trash" size={16} />
           </button>
         </div>
       {:else}
         <EmptyState
           icon="inbox"
-          message="Inbox zero"
-          hint="Press {quickCaptureKeys()} anywhere, even with the app hidden, to capture an idea. It lands here to sort later."
+          message="Inbox is clear"
+          hint="Everything has been sorted. Press {quickCaptureKeys()} anywhere, even with the app hidden, to capture an idea; it lands here."
         />
       {/each}
     {/if}
   </div>
 </div>
-
 <Modal
   open={converting !== null}
   title="Make task"
-  description="Moves this item into a project and takes it out of the Inbox."
+  description="Turns this item into a task and takes it out of the Inbox."
   submitLabel="Create task"
   onclose={() => (converting = null)}
   onsubmit={saveTask}

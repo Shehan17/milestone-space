@@ -14,13 +14,15 @@
   }
 
   // Worked out when the field is shown, so "Today" is right even if the app stays open overnight.
+  // On the last day of the week "Next Mon" is tomorrow, on the first it's in 1 week: show each date once,
+  // so one click never lights up two choices.
   const nextWeek = startOfNextWeek();
   const choices = [
     { label: "Today", date: dayFromToday(0) },
     { label: "Tomorrow", date: dayFromToday(1) },
     { label: `Next ${weekdayOf(nextWeek)}`, date: nextWeek },
     { label: "In 1 week", date: dayFromToday(7) },
-  ];
+  ].filter((choice, i, all) => all.findIndex((c) => c.date === choice.date) === i);
 </script>
 
 <input {id} class="input" type="date" bind:value />

@@ -114,7 +114,7 @@
   {#if mode === "edit"}
     <textarea
       bind:this={textarea}
-      class="block min-h-64 w-full resize-y bg-transparent px-4 py-3 font-mono text-sm text-fg placeholder:text-faint focus:outline-none"
+      class="block min-h-64 w-full resize-y bg-transparent px-5 py-4 font-mono text-sm text-fg placeholder:text-faint focus:outline-none"
       placeholder={loaded ? "Write notes in Markdown: # headings, - lists, **bold**, [links](https://…)" : "Loading…"}
       aria-label="Project notes"
       disabled={!loaded}
@@ -125,11 +125,11 @@
   {:else if content.trim()}
     <!-- Double-click the text to edit it. -->
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div class="markdown min-h-64 px-4 py-3" onclick={onPreviewClick} ondblclick={startEditing} title="Double-click to edit">
+    <div class="markdown min-h-64 px-5 py-4" onclick={onPreviewClick} ondblclick={startEditing} title="Double-click to edit">
       {@html html}
     </div>
   {:else}
-    <div class="min-h-64 px-4 py-3">
+    <div class="min-h-64 px-5 py-4">
       <button type="button" class="link text-sm" onclick={startEditing}>Nothing here yet. Write the first note</button>
     </div>
   {/if}
