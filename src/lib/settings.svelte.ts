@@ -46,9 +46,13 @@ export interface Settings {
   accent: AccentId;
   density: Density;
   font_size: FontSize;
+  /** The line under each page title that explains the page. */
+  page_descriptions: boolean;
   date_format: DateFormat;
   time_format: TimeFormat;
   week_start: WeekStart;
+  /** The date and time in the middle of the title bar. */
+  title_bar_clock: boolean;
 
   // Notifications. Times are "HH:MM" (24 h).
   notifications: boolean;
@@ -94,9 +98,11 @@ export const DEFAULT_SETTINGS: Settings = {
   accent: "theme",
   density: "compact",
   font_size: "default",
+  page_descriptions: true,
   date_format: "d MMM yyyy",
   time_format: "12h",
   week_start: "monday",
+  title_bar_clock: true,
   notifications: true,
   reminder_days: [0, 1],
   daily_summary: true,

@@ -20,6 +20,7 @@
   import { openFolder } from "$lib/system";
   import { toast } from "$lib/toast.svelte";
   import SettingRow from "./SettingRow.svelte";
+  import SettingsCard from "./SettingsCard.svelte";
 
   let paths = $state<AppPaths | null>(null);
   let folder = $derived(settings.backup_folder ?? paths?.default_backup_dir ?? "");
@@ -103,75 +104,80 @@
   const KEEP_OPTIONS = [5, 10, 14, 30, 60];
 </script>
 
-<SettingRow
-  label="Back up now"
-  description={settings.last_backup_at
-    ? `Last backup: ${formatDateTime(new Date(settings.last_backup_at))}`
-    : "No backup made yet."}
->
-  <button type="button" class="btn btn-primary" disabled={busy} onclick={backup}>Back up now</button>
-</SettingRow>
-
-<SettingRow label="Automatic backup" description="Made while MilestoneSpace is running (also from the tray).">
-  <Tabs options={backupOptions} bind:value={settings.auto_backup} label="Automatic backup" />
-</SettingRow>
-
-<SettingRow
-  label="Backup folder"
-  description="Pick a folder inside Google Drive or OneDrive to keep a copy off this laptop."
->
-  {#snippet below()}
-    <div class="flex items-center gap-2">
-      <p class="input input-sm min-w-0 flex-1 truncate text-muted" title={folder}>{folder}</p>
-      <button type="button" class="btn btn-secondary btn-sm shrink-0" onclick={chooseFolder}>Change…</button>
-      {#if settings.backup_folder}
-        <button type="button" class="btn btn-ghost btn-sm shrink-0" onclick={() => (settings.backup_folder = null)}>
-          Use default
-        </button>
-      {/if}
-      <button
-        type="button"
-        class="icon-btn"
-        title="Open the folder"
-        aria-label="Open the backup folder"
-        onclick={() => run("Couldn't open the folder", () => openFolder(folder))}
-      >
-        <Icon name="folder" size={14} />
-      </button>
-    </div>
-    {#if autoBackupStatus.error}
-      <p class="field-error" role="alert"><Icon name="alert" size={12} />The last automatic backup failed: {autoBackupStatus.error}</p>
-    {/if}
-  {/snippet}
-  <select class="input input-sm w-36" bind:value={settings.backup_keep} aria-label="Backups to keep">
-    {#each KEEP_OPTIONS as n (n)}
-      <option value={n}>Keep {n} backups</option>
-    {/each}
-  </select>
-</SettingRow>
-
-<SettingRow label="Restore from a backup" description="Replaces all current data. A copy of the current data is saved first.">
-  <button type="button" class="btn btn-secondary" disabled={busy} onclick={pickRestore}>Choose backup…</button>
-</SettingRow>
-
-<SettingRow label="Export" description="Everything as JSON, or tasks / projects as CSV for Excel or Google Sheets.">
-  <button type="button" class="btn btn-secondary btn-sm" disabled={busy} onclick={() => exportWith(exportJson)}>JSON</button>
-  <button type="button" class="btn btn-secondary btn-sm" disabled={busy} onclick={() => exportWith(exportTasksCsv)}>Tasks CSV</button>
-  <button type="button" class="btn btn-secondary btn-sm" disabled={busy} onclick={() => exportWith(exportProjectsCsv)}>
-    Projects CSV
-  </button>
-</SettingRow>
-
-<SettingRow label="Data folder" description="Where the database and settings are stored.">
-  <button
-    type="button"
-    class="btn btn-secondary"
-    disabled={!paths}
-    onclick={() => paths && run("Couldn't open the folder", () => openFolder(paths!.data_dir))}
+<SettingsCard title="Backups">
+  <SettingRow
+    label="Back up now"
+    description={settings.last_backup_at
+      ? `Last backup: ${formatDateTime(new Date(settings.last_backup_at))}`
+      : "No backup made yet."}
   >
-    <Icon name="folder" size={14} />Open data folder
-  </button>
-</SettingRow>
+    <button type="button" class="btn btn-primary" disabled={busy} onclick={backup}>Back up now</button>
+  </SettingRow>
+
+  <SettingRow label="Automatic backup" description="Made while MilestoneSpace is running (also from the tray).">
+    <Tabs options={backupOptions} bind:value={settings.auto_backup} label="Automatic backup" />
+  </SettingRow>
+
+  <SettingRow
+    label="Backup folder"
+    description="Pick a folder inside Google Drive or OneDrive to keep a copy off this laptop."
+  >
+    {#snippet below()}
+      <div class="flex items-center gap-2">
+        <p class="input input-sm min-w-0 flex-1 truncate text-muted" title={folder}>{folder}</p>
+        <button type="button" class="btn btn-secondary btn-sm shrink-0" onclick={chooseFolder}>Change…</button>
+        {#if settings.backup_folder}
+          <button type="button" class="btn btn-ghost btn-sm shrink-0" onclick={() => (settings.backup_folder = null)}>
+            Use default
+          </button>
+        {/if}
+        <button
+          type="button"
+          class="icon-btn"
+          title="Open the folder"
+          aria-label="Open the backup folder"
+          onclick={() => run("Couldn't open the folder", () => openFolder(folder))}
+        >
+          <Icon name="folder" size={14} />
+        </button>
+      </div>
+      {#if autoBackupStatus.error}
+        <p class="field-error" role="alert"><Icon name="alert" size={12} />The last automatic backup failed: {autoBackupStatus.error}</p>
+      {/if}
+    {/snippet}
+    <select class="input input-sm w-36" bind:value={settings.backup_keep} aria-label="Backups to keep">
+      {#each KEEP_OPTIONS as n (n)}
+        <option value={n}>Keep {n} backups</option>
+      {/each}
+    </select>
+  </SettingRow>
+
+  <SettingRow label="Restore from a backup" description="Replaces all current data. A copy of the current data is saved first.">
+    <button type="button" class="btn btn-secondary" disabled={busy} onclick={pickRestore}>Choose backup…</button>
+  </SettingRow>
+</SettingsCard>
+
+<SettingsCard title="Export and files">
+
+  <SettingRow label="Export" description="Everything as JSON, or tasks / projects as CSV for Excel or Google Sheets.">
+    <button type="button" class="btn btn-secondary btn-sm" disabled={busy} onclick={() => exportWith(exportJson)}>JSON</button>
+    <button type="button" class="btn btn-secondary btn-sm" disabled={busy} onclick={() => exportWith(exportTasksCsv)}>Tasks CSV</button>
+    <button type="button" class="btn btn-secondary btn-sm" disabled={busy} onclick={() => exportWith(exportProjectsCsv)}>
+      Projects CSV
+    </button>
+  </SettingRow>
+
+  <SettingRow label="Data folder" description="Where the database and settings are stored.">
+    <button
+      type="button"
+      class="btn btn-secondary"
+      disabled={!paths}
+      onclick={() => paths && run("Couldn't open the folder", () => openFolder(paths!.data_dir))}
+    >
+      <Icon name="folder" size={14} />Open data folder
+    </button>
+  </SettingRow>
+</SettingsCard>
 
 <Modal
   open={restorePath !== null}

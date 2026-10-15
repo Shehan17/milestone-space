@@ -109,7 +109,9 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
   `useShortcuts({ n: openNew })`, task rows handle their own keys in `TaskRow`. Add every new
   shortcut to `shortcutGroups()` (the `?` dialog and Settings list it). Delete on a focused task
   deletes it with Undo.
-- The project page keeps its tab in the URL (`/projects/5?tab=tasks`); link straight to a tab.
+- The project page keeps its tab in the URL (`/projects/5?tab=tasks`); link straight to a tab. Settings
+  likewise shows one section at a time (`/settings?section=data`, `SECTIONS` in its page), each made of
+  `SettingsCard`s of `SettingRow`s.
 - Settings that pages must respect: `formatDate`/`formatTime` follow the date/time format, new drafts
   use `emptyProject()` / `emptyTask()` (default type / priority), `isArchived(project)` hides
   completed projects from lists when "Move to Archive" is on, and the Today greeting uses `display_name`.
