@@ -127,6 +127,8 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
   capture, then only hidden/shown) and `widget` (the Today widget, shown at startup while `show_widget` is on,
   also with `--hidden`; toggled from the tray, Settings and the Today page with `set_widget_shown`). The widget
   never takes focus, has no taskbar entry, and is `always_on_bottom` (on the desktop) unless `widget_on_top`.
+  `widget_win.rs` (Windows only) keeps it on screen through Win+D: Win32 event hooks undo its minimize and raise it
+  while the desktop is in front (through Tauri's on-top/bottom setters, since tao forces a bottom window back down).
   `tauri-plugin-window-state` keeps only its position and size (`window-state.json` / `window-state-dev.json`
   in the app config folder); the widget calls `save_widget_state` after a move or resize.
 - Closing `main` hides it to the tray (Quit is in the tray menu), unless "Close to tray" is off.
