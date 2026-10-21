@@ -5,7 +5,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import { backupDatabaseTo, closeDatabase, getAllData, getProjects, getTasks } from "./db";
+import { backupDatabaseTo, closeDatabase, getAllData, getProjects, getStashedTasks, getTasks } from "./db";
 import { settings, updateSettings } from "./settings.svelte";
 import { STATUS_LABELS, TASK_STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "./types";
 
@@ -118,9 +118,10 @@ function toCsv(header: string[], rows: unknown[][]): string {
 }
 
 export async function exportTasksCsv(): Promise<string | null> {
-  const tasks = await getTasks();
+  // Stashed tasks too, after the others, with the day they were stashed.
+  const tasks = [...(await getTasks()), ...(await getStashedTasks())];
   const csv = toCsv(
-    ["Title", "Project", "Milestone", "Status", "Priority", "Due date", "Planned for", "Created"],
+    ["Title", "Project", "Milestone", "Status", "Priority", "Due date", "Planned for", "Created", "Stashed"],
     tasks.map((t) => [
       t.title,
       t.project_name,
@@ -130,6 +131,7 @@ export async function exportTasksCsv(): Promise<string | null> {
       t.due_date,
       t.planned_for,
       t.created_at,
+      t.stashed_at?.slice(0, 10) ?? null,
     ])
   );
   return saveText(`milestonespace-tasks-${stamp().slice(0, 10)}.csv`, csv, { name: "CSV", extensions: ["csv"] });

@@ -71,13 +71,33 @@
   let todayTasks = $derived(tasks.filter((t) => t.planned_for === today).sort(byTodayOrder));
   let doneCount = $derived(todayTasks.filter((t) => t.is_done).length);
 
-  // Due today or overdue, but not on any day's list: offered so nothing late goes unseen.
-  let dueNotPlanned = $derived(
+  // Due today, overdue or in progress, but not on any day's list: offered so nothing late or half
+  // done goes unseen. Late tasks lead (oldest due date first), then the in-progress ones.
+  const isDue = (t: Task) => t.due_date !== null && t.due_date <= today;
+  let needsAttention = $derived(
     tasks
-      .filter((t) => !t.is_done && t.planned_for === null && t.due_date !== null && t.due_date <= today)
+      .filter((t) => !t.is_done && t.planned_for === null && (isDue(t) || t.status === "in_progress"))
       .filter(isOpenWork)
-      .sort((a, b) => a.due_date!.localeCompare(b.due_date!) || byUrgency(a, b))
+      .sort(
+        (a, b) =>
+          Number(isDue(b)) - Number(isDue(a)) ||
+          (isDue(a) && isDue(b) ? a.due_date!.localeCompare(b.due_date!) : 0) ||
+          byUrgency(a, b)
+      )
   );
+
+  /** The section's title and the line under it, naming only the kinds of task it holds. */
+  let attentionText = $derived.by(() => {
+    const overdue = needsAttention.some((t) => t.due_date !== null && t.due_date < today);
+    const dueToday = needsAttention.some((t) => t.due_date === today);
+    const started = needsAttention.some((t) => !isDue(t));
+    const kinds = [overdue && "overdue", dueToday && "due today", started && "in progress"].filter((k) => k !== false);
+    const list = kinds.length > 1 ? `${kinds.slice(0, -1).join(", ")} or ${kinds.at(-1)}` : (kinds[0] ?? "");
+    return {
+      title: kinds.length > 1 || overdue ? "Needs attention" : dueToday ? "Due today" : "In progress",
+      line: `${list.charAt(0).toUpperCase()}${list.slice(1)}, and not in your plan yet.`,
+    };
+  });
 
   // Planned for an earlier day but not finished. Offered again rather than moved over automatically.
   let leftover = $derived(
@@ -120,7 +140,7 @@
         : left === 0
           ? "Everything in today's plan is done"
           : `${left} ${left === 1 ? "task" : "tasks"} left in today's plan`;
-    const due = dueNotPlanned.length;
+    const due = needsAttention.length;
     return due > 0 ? `${plan} and ${due} that ${due === 1 ? "needs" : "need"} attention.` : `${plan}.`;
   });
 
@@ -372,6 +392,11 @@
     <div class="min-w-0 flex-1">
       <p class="truncate text-sm text-fg">{task.title}</p>
       <p class="flex items-center gap-1.5 truncate text-xs text-faint">
+        {#if task.status === "in_progress"}
+          <span class="inline-flex shrink-0 items-center gap-1 text-accent-text">
+            <span class="size-1.5 rounded-full bg-current"></span>In progress
+          </span>
+        {/if}
         <a
           href={task.project_id === null ? "/misc" : `/projects/${task.project_id}?tab=tasks`}
           class="inline-flex min-w-0 items-center gap-1.5 hover:text-fg"
@@ -507,7 +532,7 @@
           <div class="border-t border-line">
             <EmptyState
               message="Nothing planned yet"
-              hint={dueNotPlanned.length > 0
+              hint={needsAttention.length > 0
                 ? "Some tasks need attention. Add them below, or pick a few from your projects."
                 : "Pick a few tasks from your projects to focus on today."}
               action={{ label: "Plan my day", icon: "sun", onclick: openPicker }}
@@ -516,29 +541,26 @@
         {/if}
       </section>
 
-      {#if dueNotPlanned.length > 0}
-        {@const anyOverdue = dueNotPlanned.some((t) => t.due_date! < today)}
+      {#if needsAttention.length > 0}
         <section class="overflow-clip rounded-card border border-danger/30 bg-[color-mix(in_oklab,var(--danger)_4%,var(--surface))]">
           <div class="flex flex-wrap items-center gap-2.5 px-5 py-4">
             <span class="text-danger"><Icon name="alert" size={18} /></span>
             <div class="min-w-0 flex-1">
               <h2 class="text-base font-semibold text-strong">
-                {anyOverdue ? "Needs attention" : "Due today"} <span class="count">{dueNotPlanned.length}</span>
+                {attentionText.title} <span class="count">{needsAttention.length}</span>
               </h2>
-              <p class="text-xs text-muted">
-                {anyOverdue ? "Overdue or due today" : "Due today"}, and not in your plan yet.
-              </p>
+              <p class="text-xs text-muted">{attentionText.line}</p>
             </div>
             <button
               type="button"
               class="btn btn-sm border border-danger/30 text-strong hover:bg-danger/10"
-              onclick={() => addAllToToday(dueNotPlanned.map((t) => t.id))}
+              onclick={() => addAllToToday(needsAttention.map((t) => t.id))}
             >
               Add all to plan
             </button>
           </div>
           <div class="divide-y divide-danger/15 border-t border-danger/15">
-            {#each dueNotPlanned as task (task.id)}
+            {#each needsAttention as task (task.id)}
               {@render offerRow(task, "")}
             {/each}
           </div>

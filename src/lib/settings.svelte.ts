@@ -33,6 +33,7 @@ export type DateFormat = "d MMM yyyy" | "MMM d, yyyy" | "dd/MM/yyyy" | "MM/dd/yy
 export type TimeFormat = "12h" | "24h";
 export type WeekStart = "monday" | "sunday";
 export type AutoBackup = "off" | "daily" | "weekly";
+export type DoneToggleSide = "left" | "right";
 
 export interface Settings {
   // General (close_to_tray and start_minimized are read by Rust)
@@ -48,6 +49,8 @@ export interface Settings {
   font_size: FontSize;
   /** The line under each page title that explains the page. */
   page_descriptions: boolean;
+  /** Which end of a task row the round done toggle sits at. */
+  done_toggle_side: DoneToggleSide;
   date_format: DateFormat;
   time_format: TimeFormat;
   week_start: WeekStart;
@@ -99,6 +102,7 @@ export const DEFAULT_SETTINGS: Settings = {
   density: "compact",
   font_size: "default",
   page_descriptions: true,
+  done_toggle_side: "right",
   date_format: "d MMM yyyy",
   time_format: "12h",
   week_start: "monday",

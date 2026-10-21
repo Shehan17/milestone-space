@@ -25,6 +25,18 @@
   // shortcuts or error messages.
   const bare = page.url.pathname.startsWith("/quick") || page.url.pathname.startsWith("/widget");
 
+  // No browser right-click menu (Back, Refresh, Print...) in any window, except in text fields,
+  // where Cut / Copy / Paste and spelling suggestions stay.
+  const NON_TEXT_INPUTS = ["checkbox", "radio", "button", "submit", "reset", "range", "color", "file", "image"];
+  function oncontextmenu(event: MouseEvent) {
+    const target = event.target;
+    const isText =
+      target instanceof HTMLTextAreaElement ||
+      (target instanceof HTMLInputElement && !NON_TEXT_INPUTS.includes(target.type)) ||
+      (target instanceof HTMLElement && target.isContentEditable);
+    if (!isText) event.preventDefault();
+  }
+
   onMount(() => {
     // Any failed database call that isn't caught on a page ends up here, as an error message.
     const showError = (event: PromiseRejectionEvent) => {
@@ -61,7 +73,7 @@
   });
 </script>
 
-<svelte:window onkeydown={bare ? undefined : handleGlobalKey} />
+<svelte:window onkeydown={bare ? undefined : handleGlobalKey} {oncontextmenu} />
 
 {#if bare}
   {@render children()}

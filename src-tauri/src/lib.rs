@@ -1,5 +1,7 @@
 mod data;
 mod settings;
+#[cfg(windows)]
+mod widget_win;
 
 use settings::{Settings, SettingsState};
 use std::sync::Mutex;
@@ -95,7 +97,7 @@ fn broadcast_settings(app: &AppHandle) {
 /// or turning it on never pulls you out of what you're typing.
 fn show_widget(app: &AppHandle, on_top: bool) {
     if let Some(window) = app.get_webview_window(WIDGET) {
-        // Win+D ("Show desktop") minimizes it; showing alone wouldn't bring it back.
+        // A minimized widget (widget_win.rs keeps Win+D from leaving it so) needs more than showing.
         let _ = window.unminimize();
         let _ = window.show();
         return;
@@ -120,8 +122,12 @@ fn show_widget(app: &AppHandle, on_top: bool) {
         let y = area.position.y as f64 / scale + 24.0;
         builder = builder.position(x, y);
     }
-    if let Err(e) = builder.build() {
-        eprintln!("Couldn't open the Today widget: {e}");
+    match builder.build() {
+        #[cfg(windows)]
+        Ok(window) => widget_win::track(&window),
+        #[cfg(not(windows))]
+        Ok(_) => {}
+        Err(e) => eprintln!("Couldn't open the Today widget: {e}"),
     }
 }
 
@@ -369,6 +375,10 @@ pub fn run() {
             tray.build(app)?;
             app.manage(QuickCapture { shortcut: Mutex::new(shortcut.ok()), menu_item: capture });
             app.manage(WidgetMenu(widget));
+
+            // Keeps the widget on screen through Win+D.
+            #[cfg(windows)]
+            widget_win::install(handle);
 
             // The widget comes back if it was on, also when started with Windows into the tray.
             if current.show_widget {

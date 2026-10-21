@@ -65,6 +65,9 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
   planned for Today, and shows as `MISC_LABEL` / `MISC_COLOR` (`types.ts`) where a project name would;
   `inShownProject()` keeps it in lists that leave out archived/completed projects. Deleting a client cascades
   to its projects; deleting a milestone sets `tasks.milestone_id` to NULL.
+  `tasks.stashed_at` (v11) parks a task in its project's **Stash** (a section under the Tasks tab): `getTasks()`
+  and the project counts leave stashed tasks out, so they vanish from every list, Today, reminders and the widget;
+  `getStashedTasks()` lists them. `stashTask()` also clears `planned_for` (its Undo puts it back).
 
 ## Frontend
 
@@ -119,6 +122,8 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
   (every 15 min) from `+layout.svelte`; it keeps running while hidden in the tray.
 - Uncaught promise rejections show as an error toast from `+layout.svelte`, so pages don't
   need their own try/catch.
+- `+layout.svelte` blocks WebView2's right-click menu in every window except in text fields (Cut / Copy /
+  Paste stay). A custom right-click menu has to handle `contextmenu` itself.
 
 ## Desktop shell (`src-tauri/src/lib.rs`)
 
@@ -127,6 +132,8 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
   capture, then only hidden/shown) and `widget` (the Today widget, shown at startup while `show_widget` is on,
   also with `--hidden`; toggled from the tray, Settings and the Today page with `set_widget_shown`). The widget
   never takes focus, has no taskbar entry, and is `always_on_bottom` (on the desktop) unless `widget_on_top`.
+  `widget_win.rs` (Windows only) keeps it on screen through Win+D: Win32 event hooks undo its minimize and raise it
+  while the desktop is in front (through Tauri's on-top/bottom setters, since tao forces a bottom window back down).
   `tauri-plugin-window-state` keeps only its position and size (`window-state.json` / `window-state-dev.json`
   in the app config folder); the widget calls `save_widget_state` after a move or resize.
 - Closing `main` hides it to the tray (Quit is in the tray menu), unless "Close to tray" is off.
@@ -151,9 +158,9 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
   and the page sit on it as two bordered panels. The default theme (Aurora) is neutral graphite with a blue
   accent (#2870e6: the design's #2f7bf5, darkened so white button text passes AA); red/orange only mean
   overdue, due soon, high priority or delete.
-- Task rows: title and meta, priority, due date, and the round done toggle (`.check-round`) at the end.
-  Sun (Today; accent icon when planned), edit and delete float over the end of the row on hover or focus
-  (`.row-actions` in app.css), so the details keep that space otherwise. Done tasks are dimmed to 50%
+- Task rows: title and meta, priority, due date, and the round done toggle (`.check-round`) at the end, or at
+  the start with `done_toggle_side: "left"` (Settings → Appearance; then `.row-actions-end`; the widget follows it too). Sun (Today; accent icon
+  when planned), edit and delete float over the end of the row on hover or focus (`.row-actions` in app.css), so the details keep that space otherwise. Done tasks are dimmed to 50%
   until the row is hovered or focused.
 - Type scale (app.css): `text-2xs` 12px badges/eyebrows, `text-xs` 13px meta, `text-ui` 14px buttons and
   subtitles, `text-sm` 15px body, `text-base` 16px section titles, `text-title` 28px page titles.
