@@ -19,9 +19,11 @@
     onedit: (task: Task) => void;
     onadd: (status: TaskStatus) => void;
     ondelete: (task: Task) => void | Promise<void>;
+    /** S on a card: moves it to the project's stash. */
+    onstash?: (task: Task) => void | Promise<void>;
   }
 
-  let { tasks, onmove, onedit, onadd, ondelete }: Props = $props();
+  let { tasks, onmove, onedit, onadd, ondelete, onstash }: Props = $props();
 
   const dotClass: Record<TaskStatus, string> = {
     todo: "bg-faint",
@@ -103,13 +105,14 @@
   // ----- Keyboard -----
   async function oncardkeydown(event: KeyboardEvent, task: Task) {
     const key = plainKey(event);
-    if (key === "Delete") {
+    const remove = key === "Delete" ? ondelete : key === "s" ? onstash : undefined;
+    if (remove) {
       event.preventDefault();
       // Keep the keyboard on the board: focus the next card in the column (or the previous one).
       const column = columns.find((c) => c.status === task.status)!.tasks;
       const i = column.findIndex((t) => t.id === task.id);
       const neighbour = column[i + 1] ?? column[i - 1];
-      await ondelete(task);
+      await remove(task);
       await tick();
       if (neighbour) document.querySelector<HTMLElement>(`[data-card-id="${neighbour.id}"]`)?.focus();
       return;
@@ -166,7 +169,7 @@
             task.id
               ? 'opacity-40'
               : ''}"
-            title="Drag to move · ←/→ change column · Enter edit · Delete delete"
+            title="Drag to move · ←/→ change column · Enter edit{onstash ? ' · S stash' : ''} · Delete delete"
             ondragstart={(e) => ondragstart(e, task)}
             {ondragend}
             onclick={() => onedit(task)}

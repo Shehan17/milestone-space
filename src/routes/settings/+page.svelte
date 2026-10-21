@@ -26,6 +26,7 @@
     settings,
     type DateFormat,
     type Density,
+    type DoneToggleSide,
     type FontSize,
     type TimeFormat,
     type WeekStart,
@@ -88,6 +89,10 @@
     { value: "compact", label: "Compact" },
     { value: "comfortable", label: "Comfortable" },
   ];
+  const doneToggleOptions: { value: DoneToggleSide; label: string }[] = [
+    { value: "left", label: "Left" },
+    { value: "right", label: "Right" },
+  ];
   const fontSizeOptions: { value: FontSize; label: string }[] = [
     { value: "small", label: "Small" },
     { value: "default", label: "Default" },
@@ -148,7 +153,7 @@
 
   const SECTIONS: { id: SectionId; label: string; icon: IconName; description: string }[] = [
     { id: "general", label: "General", icon: "settings", description: "Your name, the start page, and how MilestoneSpace starts and closes." },
-    { id: "appearance", label: "Appearance", icon: "palette", description: "Theme, accent color, text size, spacing and page descriptions." },
+    { id: "appearance", label: "Appearance", icon: "palette", description: "Theme, accent color, text size, spacing, the done toggle and page descriptions." },
     { id: "datetime", label: "Date and time", icon: "calendar", description: "How dates and times are shown, the title bar clock, and when the week starts." },
     {
       id: "notifications",
@@ -409,6 +414,9 @@
           </SettingRow>
           <SettingRow label="Spacing" description="Comfortable adds more room around rows and buttons.">
             <Tabs options={densityOptions} bind:value={settings.density} label="Spacing" />
+          </SettingRow>
+          <SettingRow label="Done toggle" description="Which end of a task row the round button that marks it done sits at, here and in the Today widget.">
+            <Tabs options={doneToggleOptions} bind:value={settings.done_toggle_side} label="Done toggle" />
           </SettingRow>
           <SettingRow label="Page descriptions" description="The line under each page title, including the summary on the Today page." toggle>
             <input type="checkbox" class="switch" bind:checked={settings.page_descriptions} />

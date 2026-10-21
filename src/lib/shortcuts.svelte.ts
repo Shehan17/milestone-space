@@ -5,7 +5,7 @@
  * without its own "n" opens the New dialog (QuickAdd.svelte).
  *
  * When adding a shortcut, also add it to shortcutGroups() so the help dialog and the Settings page list it.
- * Task rows handle their own keys (j/k, x, e, t, Delete) in TaskRow.svelte.
+ * Task rows handle their own keys (j/k, x, e, t, s, Delete) in TaskRow.svelte.
  */
 import { goto } from "$app/navigation";
 import { onMount } from "svelte";
@@ -178,6 +178,7 @@ export const shortcutGroups = (): { title: string; items: ShortcutInfo[] }[] => 
       { keys: [["X"], ["Space"]], label: "Mark done / not done" },
       { keys: [["Enter"], ["E"]], label: "Edit" },
       { keys: [["T"]], label: "Add to / remove from Today" },
+      { keys: [["S"]], label: "Move to the project's stash (project page)" },
       { keys: [["Delete"]], label: "Delete (Ctrl+Z brings it back)" },
     ],
   },
@@ -201,6 +202,7 @@ export const shortcutGroups = (): { title: string; items: ShortcutInfo[] }[] => 
     items: [
       { keys: [["←"], ["→"]], label: "Move to the previous / next column" },
       { keys: [["Enter"]], label: "Edit" },
+      { keys: [["S"]], label: "Move to the stash" },
       { keys: [["Delete"]], label: "Delete (Ctrl+Z brings it back)" },
     ],
   },

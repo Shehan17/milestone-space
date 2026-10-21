@@ -379,6 +379,13 @@
       @apply absolute top-1/2 right-0 h-5 w-px -translate-y-1/2 bg-line-strong content-[''];
     }
   }
+  /* With the done toggle at the start of the row (Settings → Appearance), the buttons take the row's end. */
+  .row-actions-end {
+    @apply right-0 pr-3;
+    &::after {
+      @apply hidden;
+    }
+  }
 
   /* Small uppercase group label ("MORE", "DUE SOON"). */
   .eyebrow {

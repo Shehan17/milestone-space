@@ -9,6 +9,7 @@
   import MilestoneForm from "$lib/components/MilestoneForm.svelte";
   import Modal from "$lib/components/Modal.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
+  import PriorityBadge from "$lib/components/PriorityBadge.svelte";
   import ProgressBar from "$lib/components/ProgressBar.svelte";
   import ProjectDetails from "$lib/components/ProjectDetails.svelte";
   import ProjectAvatar from "$lib/components/ProjectAvatar.svelte";
@@ -30,6 +31,7 @@
     getClients,
     getMilestones,
     getProject,
+    getStashedTasks,
     getTasks,
     moveTaskOnBoard,
     setMilestoneDone,
@@ -37,6 +39,8 @@
     setTaskDone,
     setTaskStatus,
     setTasksPlanned,
+    stashTask,
+    unstashTask,
     updateMilestone,
     updateProject,
     updateTask,
@@ -44,6 +48,7 @@
   import { formatLongDate, todayString } from "$lib/dates";
   import { ms } from "$lib/motion";
   import { onDataChanged } from "$lib/quickadd.svelte";
+  import { settings } from "$lib/settings.svelte";
   import { openFolder, openInVsCode } from "$lib/system";
   import { useShortcuts } from "$lib/shortcuts.svelte";
   import { toast } from "$lib/toast.svelte";
@@ -65,20 +70,24 @@
   let project = $state<Project | null>(null);
   let milestones = $state<Milestone[]>([]);
   let tasks = $state<Task[]>([]);
+  /** Tasks parked in this project's stash: shown only in the Stash section of the Tasks tab. */
+  let stashed = $state<Task[]>([]);
   let clients = $state<Client[]>([]);
   let loaded = $state(false);
 
   async function load(id: number) {
-    const [p, m, t] = await Promise.all([getProject(id), getMilestones(id), getTasks(id)]);
+    const [p, m, t, st] = await Promise.all([getProject(id), getMilestones(id), getTasks(id), getStashedTasks(id)]);
     if (id !== project?.id) {
       // Another project: its own tab and view, and no filter carried over.
       tab = readTab(id);
       taskView = readTaskView(id);
       milestoneFilter = "all";
+      stashOpen = false;
     }
     project = p;
     milestones = m;
     tasks = t;
+    stashed = st;
     loaded = true;
   }
 
@@ -143,6 +152,8 @@
       .filter((u) => !u.item.is_done && u.item.due_date)
       .sort((a, b) => a.item.due_date!.localeCompare(b.item.due_date!))
   );
+  /** Up next's done toggles follow the task rows (Settings → Appearance). */
+  let checkLeft = $derived(settings.done_toggle_side === "left");
 
   /** Checking an item in Up next makes it disappear, so it comes with Undo. */
   async function completeUpcoming(u: UpcomingItem) {
@@ -370,8 +381,27 @@
     });
   }
 
+  // ----- Stash: tasks parked for later, out of every list, Today and reminders until restored -----
+
+  let stashOpen = $state(false);
+
+  async function moveToStash(t: Task) {
+    const undo = await stashTask(t.id);
+    await reload();
+    toast.undo("Moved to stash", async () => {
+      await undo();
+      await reload();
+    });
+  }
+
+  async function restoreFromStash(t: Task) {
+    await unstashTask(t.id);
+    await reload();
+    toast.success("Back in the task list");
+  }
+
   function deleteEditingTask() {
-    const t = tasks.find((x) => x.id === editingTaskId);
+    const t = [...tasks, ...stashed].find((x) => x.id === editingTaskId);
     taskFormOpen = false;
     if (t) removeTask(t);
   }
@@ -514,7 +544,17 @@
         <div class="divide-y divide-line">
           {#each upcoming.slice(0, 5) as u (u.kind + u.item.id)}
             {@const edit = () => (u.kind === "task" ? openEditTask(u.item) : openEditMilestone(u.item))}
+            {#snippet doneToggle()}
+              <input
+                type="checkbox"
+                class="check-round {checkLeft ? '' : 'ml-2'}"
+                checked={false}
+                onchange={() => completeUpcoming(u)}
+                aria-label="Mark {u.item.title} as done"
+              />
+            {/snippet}
             <div class="group relative list-row">
+              {#if checkLeft}{@render doneToggle()}{/if}
               <span class="text-faint" title={u.kind === "task" ? "Task" : "Milestone"}>
                 <Icon name={u.kind === "task" ? "tasks" : "flag"} size={16} />
               </span>
@@ -526,7 +566,7 @@
                 {u.item.title}
               </button>
               <DeadlineLabel date={u.item.due_date} />
-              <div class="row-actions">
+              <div class="row-actions {checkLeft ? 'row-actions-end' : ''}">
                 <button type="button" class="icon-btn size-8" aria-label="Edit {u.kind}" title="Edit" onclick={edit}>
                   <Icon name="edit" size={15} />
                 </button>
@@ -540,13 +580,7 @@
                   <Icon name="trash" size={15} />
                 </button>
               </div>
-              <input
-                type="checkbox"
-                class="check-round ml-2"
-                checked={false}
-                onchange={() => completeUpcoming(u)}
-                aria-label="Mark {u.item.title} as done"
-              />
+              {#if !checkLeft}{@render doneToggle()}{/if}
             </div>
           {:else}
             <EmptyState
@@ -690,12 +724,20 @@
           onedit={openEditTask}
           onadd={(status) => openNewTask(undefined, status)}
           ondelete={removeTask}
+          onstash={moveToStash}
         />
       {:else}
         <section class="card divide-y divide-line">
           {#each visibleTasks as task (task.id)}
             <div animate:flip={{ duration: ms(200) }}>
-              <TaskRow {task} ontoggle={toggleTask} onedit={openEditTask} ondelete={removeTask} onplan={togglePlanned} />
+              <TaskRow
+                {task}
+                ontoggle={toggleTask}
+                onedit={openEditTask}
+                ondelete={removeTask}
+                onplan={togglePlanned}
+                onstash={moveToStash}
+              />
             </div>
           {:else}
             {#if tasks.length === 0}
@@ -712,6 +754,57 @@
               />
             {/if}
           {/each}
+        </section>
+      {/if}
+
+      {#if stashed.length > 0}
+        <section class="card">
+          <button
+            type="button"
+            class="flex w-full cursor-pointer items-center gap-2 px-5 py-3.5 text-left text-sm font-semibold text-muted transition-colors duration-150 hover:text-strong"
+            aria-expanded={stashOpen}
+            onclick={() => (stashOpen = !stashOpen)}
+          >
+            <Icon name={stashOpen ? "up" : "down"} size={16} />Stash <span class="count">{stashed.length}</span>
+            <span class="ml-auto hidden truncate text-xs font-normal text-faint lg:inline">
+              Parked for later: not in lists, Today or reminders until you bring them back.
+            </span>
+          </button>
+          {#if stashOpen}
+            <div class="divide-y divide-line border-t border-line">
+              {#each stashed as task (task.id)}
+                <div class="group list-row" animate:flip={{ duration: ms(200) }}>
+                  <button
+                    type="button"
+                    class="min-w-0 flex-1 cursor-pointer text-left"
+                    title="Edit"
+                    onclick={() => openEditTask(task)}
+                  >
+                    <span class="block truncate text-sm {task.is_done ? 'text-faint line-through' : 'text-fg'}">{task.title}</span>
+                    {#if task.milestone_title}
+                      <span class="flex items-center gap-1 truncate text-xs text-faint">
+                        <Icon name="flag" size={12} /><span class="truncate">{task.milestone_title}</span>
+                      </span>
+                    {/if}
+                  </button>
+                  {#if !task.is_done}<PriorityBadge priority={task.priority} />{/if}
+                  <div class="w-22 shrink-0 text-right"><DeadlineLabel date={task.due_date} done={task.is_done} /></div>
+                  <button type="button" class="btn btn-soft btn-sm" title="Back to the task list" onclick={() => restoreFromStash(task)}>
+                    <Icon name="archive-restore" size={14} />Restore
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn icon-btn-danger size-8"
+                    aria-label="Delete {task.title}"
+                    title="Delete"
+                    onclick={() => removeTask(task)}
+                  >
+                    <Icon name="trash" size={15} />
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {/if}
         </section>
       {/if}
     {:else}

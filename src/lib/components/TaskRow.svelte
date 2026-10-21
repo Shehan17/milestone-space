@@ -6,6 +6,7 @@
   import Icon from "./Icon.svelte";
   import PriorityBadge from "./PriorityBadge.svelte";
   import ProjectDot from "./ProjectDot.svelte";
+  import { settings } from "$lib/settings.svelte";
   import { plainKey } from "$lib/shortcuts.svelte";
 
   type TaskAction = (task: Task) => void | Promise<void>;
@@ -19,11 +20,14 @@
     ondelete: TaskAction;
     /** Shows the sun button that adds the task to, or removes it from, the Today list. */
     onplan?: TaskAction;
+    /** Shows the button that moves the task to its project's stash (the project page). */
+    onstash?: TaskAction;
   }
 
-  let { task, showProject = false, ontoggle, onedit, ondelete, onplan }: Props = $props();
+  let { task, showProject = false, ontoggle, onedit, ondelete, onplan, onstash }: Props = $props();
 
   let plannedToday = $derived(task.planned_for === todayString());
+  let checkLeft = $derived(settings.done_toggle_side === "left");
 
   // Finished tasks step back: dimmed until the row is hovered or focused.
   const dim = "opacity-50 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100";
@@ -72,6 +76,7 @@
       Delete: () => runAction(row, ondelete),
     };
     if (onplan) actions.t = () => runAction(row, onplan);
+    if (onstash) actions.s = () => runAction(row, onstash);
 
     const action = actions[key];
     if (action) {
@@ -90,6 +95,18 @@
   aria-label={task.title}
   {onkeydown}
 >
+  <!-- The done toggle sits at the end of the row, or at the start (Settings → Appearance). -->
+  {#snippet doneToggle()}
+    <input
+      type="checkbox"
+      class="check-round {checkLeft ? '' : 'ml-2'} {task.is_done ? dim : ''}"
+      checked={task.is_done}
+      onchange={() => ontoggle(task)}
+      aria-label="Mark {task.title} as done"
+    />
+  {/snippet}
+
+  {#if checkLeft}{@render doneToggle()}{/if}
   <div class="min-w-0 flex-1 {task.is_done ? dim : ''}">
     <p class="truncate text-sm {task.is_done ? 'text-faint line-through' : 'text-fg'}">
       {task.title}
@@ -123,9 +140,9 @@
   {#if !task.is_done}<PriorityBadge priority={task.priority} />{/if}
   <div class="w-22 shrink-0 text-right {task.is_done ? dim : ''}"><DeadlineLabel date={task.due_date} done={task.is_done} /></div>
 
-  <!-- Float over the priority and due date on hover or keyboard focus (T, E and Delete also work on
+  <!-- Float over the priority and due date on hover or keyboard focus (T, S, E and Delete also work on
        a focused row). The sun is in the accent color while the task is on today's list. -->
-  <div class="row-actions">
+  <div class="row-actions {checkLeft ? 'row-actions-end' : ''}">
     {#if onplan}
       <button
         type="button"
@@ -138,6 +155,11 @@
         <Icon name="sun" size={16} />
       </button>
     {/if}
+    {#if onstash}
+      <button type="button" class="icon-btn size-8" aria-label="Move to stash" title="Move to stash (S)" onclick={() => onstash(task)}>
+        <Icon name="archive" size={15} />
+      </button>
+    {/if}
     <button type="button" class="icon-btn size-8" aria-label="Edit task" title="Edit (E)" onclick={() => onedit(task)}>
       <Icon name="edit" size={15} />
     </button>
@@ -146,12 +168,5 @@
     </button>
   </div>
 
-  <!-- The done toggle sits at the end of the row. -->
-  <input
-    type="checkbox"
-    class="check-round ml-2 {task.is_done ? dim : ''}"
-    checked={task.is_done}
-    onchange={() => ontoggle(task)}
-    aria-label="Mark {task.title} as done"
-  />
+  {#if !checkLeft}{@render doneToggle()}{/if}
 </div>

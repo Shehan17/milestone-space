@@ -196,6 +196,12 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_tasks_milestone ON tasks(milestone_id);
   CREATE INDEX IF NOT EXISTS idx_tasks_planned ON tasks(planned_for);
   `,
+
+  // v11: the stash on a project's Tasks tab. stashed_at is when a task was parked there ("not now"),
+  // NULL for every other task. Stashed tasks are left out of every list, count and reminder.
+  `
+  ALTER TABLE tasks ADD COLUMN stashed_at TEXT;
+  `,
 ];
 
 /** The full SQL for one migration: one transaction, foreign keys off, bumps user_version. */

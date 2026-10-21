@@ -146,6 +146,8 @@ export interface Task extends TaskInput {
   board_order: number | null;
   /** The day ("YYYY-MM-DD") the task was picked for the Today list; null when not planned. */
   planned_for: string | null;
+  /** When the task was moved to its project's stash (SQLite datetime); null when it isn't stashed. */
+  stashed_at: string | null;
   created_at: string;
   /** null (both) for a task with no project. */
   project_name: string | null;

@@ -189,8 +189,8 @@ export async function deleteClient(id: number): Promise<void> {
 
 const PROJECT_SELECT = `
   SELECT p.*, c.name AS client_name,
-    (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS task_count,
-    (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.is_done = 0) AS open_task_count
+    (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.stashed_at IS NULL) AS task_count,
+    (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.stashed_at IS NULL AND t.is_done = 0) AS open_task_count
   FROM projects p
   LEFT JOIN clients c ON c.id = p.client_id`;
 
@@ -310,10 +310,13 @@ const TASK_SELECT = `
   LEFT JOIN projects p ON p.id = t.project_id
   LEFT JOIN milestones m ON m.id = t.milestone_id`;
 
-/** All tasks, or only one project's when projectId is given. Open first, then by due date. */
+/**
+ * All tasks, or only one project's when projectId is given. Open first, then by due date.
+ * Stashed tasks are left out (see getStashedTasks).
+ */
 export async function getTasks(projectId?: number): Promise<Task[]> {
   const db = await getDb();
-  const where = projectId === undefined ? "" : "WHERE t.project_id = $1";
+  const where = projectId === undefined ? "WHERE t.stashed_at IS NULL" : "WHERE t.stashed_at IS NULL AND t.project_id = $1";
   const rows = await db.select<Raw<Task>[]>(
     `${TASK_SELECT} ${where}
      ORDER BY t.is_done, t.due_date IS NULL, t.due_date,
@@ -398,6 +401,35 @@ export async function setTasksPlanned(ids: number[], day: string | null): Promis
 }
 
 export const deleteTask = (id: number) => deleteWithUndo("tasks", id);
+
+// ---------- Stash: tasks parked for later, hidden everywhere but their project's Stash section ----------
+
+/** Stashed tasks, all or one project's, the most recently stashed first. */
+export async function getStashedTasks(projectId?: number): Promise<Task[]> {
+  const db = await getDb();
+  const where = projectId === undefined ? "WHERE t.stashed_at IS NOT NULL" : "WHERE t.stashed_at IS NOT NULL AND t.project_id = $1";
+  const rows = await db.select<Raw<Task>[]>(
+    `${TASK_SELECT} ${where} ORDER BY t.stashed_at DESC, t.id DESC`,
+    projectId === undefined ? [] : [projectId]
+  );
+  return toBool(rows);
+}
+
+/** Moves a task to the stash and off any day's plan. Undo brings it back, plan included. */
+export async function stashTask(id: number): Promise<Undo> {
+  const db = await getDb();
+  const [row] = await db.select<{ planned_for: string | null }[]>("SELECT planned_for FROM tasks WHERE id = $1", [id]);
+  await db.execute("UPDATE tasks SET stashed_at = datetime('now'), planned_for = NULL WHERE id = $1", [id]);
+  return async () => {
+    await db.execute("UPDATE tasks SET stashed_at = NULL, planned_for = $1 WHERE id = $2", [row?.planned_for ?? null, id]);
+  };
+}
+
+/** Takes a task out of the stash, back into its project's tasks as it was (not planned for a day). */
+export async function unstashTask(id: number): Promise<void> {
+  const db = await getDb();
+  await db.execute("UPDATE tasks SET stashed_at = NULL WHERE id = $1", [id]);
+}
 
 // ---------- Inbox ----------
 

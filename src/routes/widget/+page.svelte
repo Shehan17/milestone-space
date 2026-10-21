@@ -187,6 +187,9 @@
 
   // Finished tasks step back until the row is hovered or focused, as in the app.
   const dim = "opacity-50 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100";
+
+  // The done toggle sits at the same end as in the app's task rows (Settings → Appearance).
+  let checkLeft = $derived(settings.done_toggle_side === "left");
 </script>
 
 <svelte:window onfocus={checkDay} />
@@ -212,7 +215,7 @@
     {:else if todayTasks.length > 0}
       <ul class="divide-y divide-line">
         {#each todayTasks as task (task.id)}
-          <li class="group flex items-center gap-2.5 px-3.5 py-2 transition-colors duration-150 hover:bg-hover">
+          {#snippet doneToggle()}
             <input
               type="checkbox"
               class="check-round {task.is_done ? dim : ''}"
@@ -220,6 +223,9 @@
               onchange={() => toggle(task)}
               aria-label="Mark {task.title} as done"
             />
+          {/snippet}
+          <li class="group flex items-center gap-2.5 px-3.5 py-2 transition-colors duration-150 hover:bg-hover">
+            {#if checkLeft}{@render doneToggle()}{/if}
             <button
               type="button"
               class="min-w-0 flex-1 cursor-pointer rounded-control text-left {task.is_done ? dim : ''}"
@@ -232,6 +238,7 @@
               </span>
             </button>
             {#if !task.is_done}<span class="shrink-0"><DeadlineLabel date={task.due_date} /></span>{/if}
+            {#if !checkLeft}{@render doneToggle()}{/if}
           </li>
         {/each}
       </ul>
