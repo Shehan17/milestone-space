@@ -47,7 +47,8 @@
     | "bell"
     | "palette"
     | "database"
-    | "template";
+    | "template"
+    | "note";
 </script>
 
 <script lang="ts">
@@ -170,6 +171,9 @@
   {:else if name === "x"}
     <path d="M18 6 6 18" />
     <path d="m6 6 12 12" />
+  {:else if name === "note"}
+    <path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z" />
+    <path d="M15 3v4a2 2 0 0 0 2 2h4" />
   {:else if name === "pin"}
     <path d="M12 17v5" />
     <path

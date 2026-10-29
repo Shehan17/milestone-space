@@ -7,13 +7,15 @@ import type {
   InboxItem,
   Milestone,
   MilestoneInput,
+  Note,
+  NoteInput,
+  NoteOwner,
   Project,
   ProjectDetail,
   ProjectDetailInput,
   ProjectInput,
   ProjectLink,
   ProjectLinkInput,
-  ProjectNote,
   ProjectTemplate,
   ProjectTemplateInput,
   Priority,
@@ -116,7 +118,7 @@ const dateOrNull = (value: string | null) => (value ? value : null);
 // ---------- Undo for deletes ----------
 
 /** Tables whose rows can be deleted with Undo: nothing else points at them. */
-type UndoableTable = "tasks" | "inbox_items" | "project_links" | "project_details" | "project_templates";
+type UndoableTable = "tasks" | "inbox_items" | "project_links" | "project_details" | "project_templates" | "notes";
 
 /** Puts a deleted row back. Returned by the delete functions below, for the Undo button. */
 export type Undo = () => Promise<void>;
@@ -159,25 +161,29 @@ export async function getClients(): Promise<Client[]> {
   );
 }
 
-/** Returns the new client's id. */
+export async function getClient(id: number): Promise<Client | null> {
+  const db = await getDb();
+  const rows = await db.select<Client[]>(
+    `SELECT c.*, (SELECT COUNT(*) FROM projects p WHERE p.client_id = c.id) AS project_count
+     FROM clients c WHERE c.id = $1`,
+    [id]
+  );
+  return rows[0] ?? null;
+}
+
+/** Returns the new client's id. Notes are note cards now (see Notes below), not a column. */
 export async function addClient(input: ClientInput): Promise<number> {
   const db = await getDb();
-  const result = await db.execute("INSERT INTO clients (name, email, notes) VALUES ($1, $2, $3)", [
+  const result = await db.execute("INSERT INTO clients (name, email) VALUES ($1, $2)", [
     input.name.trim(),
     input.email.trim(),
-    input.notes.trim(),
   ]);
   return result.lastInsertId!;
 }
 
 export async function updateClient(id: number, input: ClientInput): Promise<void> {
   const db = await getDb();
-  await db.execute("UPDATE clients SET name = $1, email = $2, notes = $3 WHERE id = $4", [
-    input.name.trim(),
-    input.email.trim(),
-    input.notes.trim(),
-    id,
-  ]);
+  await db.execute("UPDATE clients SET name = $1, email = $2 WHERE id = $3", [input.name.trim(), input.email.trim(), id]);
 }
 
 export async function deleteClient(id: number): Promise<void> {
@@ -452,24 +458,7 @@ export async function addInboxItem(text: string): Promise<void> {
 
 export const deleteInboxItem = (id: number) => deleteWithUndo("inbox_items", id);
 
-// ---------- Project info: notes, links, details ----------
-
-/** The project's note, or null if none has been written yet. */
-export async function getProjectNote(projectId: number): Promise<ProjectNote | null> {
-  const db = await getDb();
-  const rows = await db.select<ProjectNote[]>("SELECT * FROM project_notes WHERE project_id = $1", [projectId]);
-  return rows[0] ?? null;
-}
-
-/** Creates or replaces the project's single note. */
-export async function saveProjectNote(projectId: number, content: string): Promise<void> {
-  const db = await getDb();
-  await db.execute(
-    `INSERT INTO project_notes (project_id, content, updated_at) VALUES ($1, $2, datetime('now'))
-     ON CONFLICT(project_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at`,
-    [projectId, content]
-  );
-}
+// ---------- Project info: links, details ----------
 
 type OrderedTable = "project_links" | "project_details";
 
@@ -562,6 +551,73 @@ export const deleteProjectDetail = (id: number) => deleteWithUndo("project_detai
 
 export const moveProjectDetail = (id: number, direction: -1 | 1) => moveRow("project_details", id, direction);
 
+// ---------- Notes: Keep-style cards on a project or a client ----------
+
+/** The owner's column. Only these two fixed names ever go into the SQL. */
+const ownerColumn = (owner: NoteOwner) => (owner.type === "project" ? "project_id" : "client_id");
+
+/** Pinned first; within each group the order they were arranged in (sort_order). */
+export async function getNotes(owner: NoteOwner): Promise<Note[]> {
+  const db = await getDb();
+  return db.select<Note[]>(
+    `SELECT * FROM notes WHERE ${ownerColumn(owner)} = $1 ORDER BY pinned_at IS NULL, sort_order, id`,
+    [owner.id]
+  );
+}
+
+function noteValues(input: NoteInput) {
+  return [input.title.trim(), input.content.replace(/s+$/, ""), input.color];
+}
+
+/** Adds a note in front of the others, like Keep. Returns its id. */
+export async function addNote(owner: NoteOwner, input: NoteInput): Promise<number> {
+  const db = await getDb();
+  const column = ownerColumn(owner);
+  const [{ first }] = await db.select<{ first: number }[]>(
+    `SELECT COALESCE(MIN(sort_order), 1) - 1 AS first FROM notes WHERE ${column} = $1`,
+    [owner.id]
+  );
+  const result = await db.execute(
+    `INSERT INTO notes (${column}, title, content, color, sort_order) VALUES ($1, $2, $3, $4, $5)`,
+    [owner.id, ...noteValues(input), first]
+  );
+  return result.lastInsertId!;
+}
+
+export async function updateNote(id: number, input: NoteInput): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    "UPDATE notes SET title = $1, content = $2, color = $3, updated_at = datetime('now') WHERE id = $4",
+    [...noteValues(input), id]
+  );
+}
+
+/** Pins a note to the top of its board (pinned_at = now) or unpins it (NULL). */
+export async function setNotePinned(id: number, pinned: boolean): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    pinned
+      ? "UPDATE notes SET pinned_at = datetime('now') WHERE id = $1"
+      : "UPDATE notes SET pinned_at = NULL WHERE id = $1",
+    [id]
+  );
+}
+
+/** Saves a dragged order: orderedIds get sort_order 0, 1, 2... */
+export async function reorderNotes(orderedIds: number[]): Promise<void> {
+  if (orderedIds.length === 0) return;
+  const db = await getDb();
+  const n = orderedIds.length;
+  const cases = orderedIds.map((_, i) => `WHEN ${2 * i + 1} THEN ${2 * i + 2}`).join(" ");
+  const inList = orderedIds.map((_, i) => `${2 * n + i + 1}`).join(", ");
+  await db.execute(`UPDATE notes SET sort_order = CASE id ${cases} END WHERE id IN (${inList})`, [
+    ...orderedIds.flatMap((noteId, i) => [noteId, i]),
+    ...orderedIds,
+  ]);
+}
+
+export const deleteNote = (id: number) => deleteWithUndo("notes", id);
+
 // ---------- Project templates ----------
 
 export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
@@ -632,6 +688,7 @@ export const EXPORT_TABLES = [
   "tasks",
   "inbox_items",
   "project_notes",
+  "notes",
   "project_links",
   "project_details",
   "project_templates",

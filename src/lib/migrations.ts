@@ -202,6 +202,32 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE tasks ADD COLUMN stashed_at TEXT;
   `,
+
+  // v12: note cards (Keep-style) on projects and clients. A note belongs to exactly one project or
+  // one client. Each project's markdown note and each client's notes text become a first card; the
+  // old project_notes table and clients.notes column are left as they were (no longer used).
+  `
+  CREATE TABLE IF NOT EXISTS notes (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+    client_id  INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+    title      TEXT NOT NULL DEFAULT '',
+    content    TEXT NOT NULL DEFAULT '',
+    color      TEXT,
+    pinned_at  TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK ((project_id IS NULL) <> (client_id IS NULL))
+  );
+  CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id);
+  CREATE INDEX IF NOT EXISTS idx_notes_client ON notes(client_id);
+  INSERT INTO notes (project_id, content, created_at, updated_at)
+  SELECT project_id, content, updated_at, updated_at FROM project_notes
+  WHERE trim(content) <> '' AND project_id IN (SELECT id FROM projects);
+  INSERT INTO notes (client_id, content, created_at, updated_at)
+  SELECT id, notes, created_at, created_at FROM clients WHERE trim(notes) <> '';
+  `,
 ];
 
 /** The full SQL for one migration: one transaction, foreign keys off, bumps user_version. */

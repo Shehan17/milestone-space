@@ -80,11 +80,12 @@ export function byTodayOrder(a: Task, b: Task): number {
 export interface ClientInput {
   name: string;
   email: string;
-  notes: string;
 }
 
 export interface Client extends ClientInput {
   id: number;
+  /** Old free-text notes, copied to a note card by migration v12 and no longer shown or edited. */
+  notes: string;
   created_at: string;
   project_count: number;
 }
@@ -177,7 +178,7 @@ export interface ProjectTemplate extends ProjectTemplateInput {
   created_at: string;
 }
 
-// ---------- Project info (notes, links, details) ----------
+// ---------- Project info (links, details) ----------
 
 export type LinkType = "github" | "figma" | "drive" | "store" | "website" | "docs" | "other";
 
@@ -192,14 +193,6 @@ export const LINK_TYPE_LABELS: Record<LinkType, string> = {
   docs: "Docs",
   other: "Other",
 };
-
-/** One markdown note per project. */
-export interface ProjectNote {
-  id: number;
-  project_id: number;
-  content: string;
-  updated_at: string;
-}
 
 export interface ProjectLinkInput {
   project_id: number;
@@ -224,4 +217,28 @@ export interface ProjectDetail extends ProjectDetailInput {
   id: number;
   sort_order: number;
   created_at: string;
+}
+
+// ---------- Note cards (projects and clients) ----------
+
+/** Whose notes: a project's or a client's. */
+export type NoteOwner = { type: "project" | "client"; id: number };
+
+export interface NoteInput {
+  title: string;
+  /** Markdown. "- [ ] " lines show as checkboxes that can be ticked on the card. */
+  content: string;
+  /** One of PROJECT_COLORS as a tint, or null for the plain card. */
+  color: string | null;
+}
+
+export interface Note extends NoteInput {
+  id: number;
+  project_id: number | null;
+  client_id: number | null;
+  /** When it was pinned (pinned notes come first), NULL when not pinned. */
+  pinned_at: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 }

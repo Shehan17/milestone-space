@@ -9,6 +9,7 @@
   import Icon from "$lib/components/Icon.svelte";
   import MilestoneForm from "$lib/components/MilestoneForm.svelte";
   import Modal from "$lib/components/Modal.svelte";
+  import NoteBoard from "$lib/components/NoteBoard.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import PriorityBadge from "$lib/components/PriorityBadge.svelte";
   import ProgressBar from "$lib/components/ProgressBar.svelte";
@@ -17,7 +18,6 @@
   import ProjectDot from "$lib/components/ProjectDot.svelte";
   import ProjectForm, { emptyProject } from "$lib/components/ProjectForm.svelte";
   import ProjectLinks from "$lib/components/ProjectLinks.svelte";
-  import ProjectNotes from "$lib/components/ProjectNotes.svelte";
   import Skeleton from "$lib/components/Skeleton.svelte";
   import Tabs from "$lib/components/Tabs.svelte";
   import TaskBoard from "$lib/components/TaskBoard.svelte";
@@ -858,7 +858,7 @@
       {/if}
     {:else}
       <div class="flex flex-wrap items-start gap-5">
-        <div class="min-w-0 flex-[1_1_27.5rem]"><ProjectNotes {projectId} /></div>
+        <div class="min-w-0 flex-[1_1_27.5rem]"><NoteBoard owner={{ type: "project", id: projectId }} /></div>
         <div class="flex min-w-0 flex-[1_1_17.5rem] flex-col gap-5">
           <ProjectLinks {projectId} />
           <ProjectDetails {projectId} />

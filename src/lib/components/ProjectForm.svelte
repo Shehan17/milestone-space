@@ -58,7 +58,7 @@
     if (!name || savingClient) return;
     savingClient = true;
     try {
-      const id = await addClient({ name, email: "", notes: "" });
+      const id = await addClient({ name, email: "" });
       clients = await getClients();
       values.client_id = id;
       newClient = "";

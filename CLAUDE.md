@@ -68,13 +68,17 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
   `tasks.stashed_at` (v11) parks a task in its project's **Stash** (a section under the Tasks tab): `getTasks()`
   and the project counts leave stashed tasks out, so they vanish from every list, Today, reminders and the widget;
   `getStashedTasks()` lists them. `stashTask()` also clears `planned_for` (its Undo puts it back).
+  `notes` (v12) are Keep-style note cards: each belongs to exactly one project or one client (`NoteOwner`), with a
+  title, markdown content, an optional color (one of `PROJECT_COLORS`, shown as a tint), `pinned_at` and `sort_order`
+  (new notes go first). v12 copied each `project_notes` note and `clients.notes` text into a card; that table and
+  column are no longer used (kept as they were).
 
 ## Frontend
 
 - Routes: `/` Today (start page: tasks picked for today via `tasks.planned_for`, plus Needs attention,
   stats, pinned projects, Coming up and the Getting started checklist), `/inbox`, `/projects`,
   `/projects/[id]`, `/tasks` (All tasks, grouped by project), `/misc` (Misc tasks). Under "More" in the sidebar: `/clients`
-  (secondary feature), `/settings`. There is no Dashboard any more (Today replaced it); a saved
+  (secondary feature; a row opens `/clients/[id]`: the client's projects and notes), `/settings`. There is no Dashboard any more (Today replaced it); a saved
   `start_page` that isn't in `START_PAGES` falls back to Today.
   `/quick` is the quick capture window: `+layout.svelte` renders it bare (no sidebar/shortcuts).
   It works like the New dialog: in the text field ←/→ pick what to add (`kindStep()`) and ↑/↓ the task's project
@@ -100,9 +104,13 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
   `notifyDataChanged()`; pages that list tasks or projects reload with `onDataChanged(load)`.
 - Feedback: `toast.success("Task added")` etc. (`src/lib/toast.svelte.ts`, shown by `Toaster` in
   `+layout.svelte`) after every action whose result isn't visible on the page.
-- Deletes: single rows (task, inbox item, link, detail, template) delete at once and offer Undo:
+- Deletes: single rows (task, inbox item, link, detail, template, note) delete at once and offer Undo:
   their `db.ts` delete returns an `undo` function (re-inserts the exact row) for `toast.undo(...)`,
   which Ctrl+Z also runs. Deletes that cascade (project, client, milestone) keep a confirm dialog.
+- Notes: `NoteBoard` (project page's "Notes & links" tab, client page) lays cards out as a masonry grid (absolutely
+  placed, each in the shortest column), pinned ones first; drag or ←/→ reorders, P pins, Delete deletes with Undo.
+  `NoteCard` renders the markdown (`src/lib/markdown.ts`) with clickable `- [ ]` checkboxes; `NoteEditor` opens a
+  note in a `Modal` with no Save button: it saves as you type and on close, and creates a new note only once it has text.
 - Empty lists use `EmptyState` with a message, a hint and the button that fixes it.
 - Today's Overdue / This week / Coming up come from `dueItems()` in `src/lib/due.ts`.
 - Friendly deadlines come from `src/lib/dates.ts` via `DeadlineLabel`: overdue red,

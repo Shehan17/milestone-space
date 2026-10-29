@@ -400,6 +400,25 @@
   .link {
     @apply cursor-pointer text-accent-text underline-offset-2 hover:underline;
   }
+  /*
+   * A note card (NoteCard.svelte). A note with a color (data-tint, --tint) gets a light tint of it,
+   * mixed with the theme's surface so text keeps its contrast. --card-bg is also used by its buttons.
+   */
+  .note-card {
+    --card-bg: var(--surface);
+    @apply relative rounded-card border border-line bg-(--card-bg) transition-colors duration-150 hover:border-line-strong;
+    &[data-tint] {
+      --card-bg: color-mix(in oklab, var(--tint) 13%, var(--surface));
+      border-color: color-mix(in oklab, var(--tint) 30%, var(--line));
+      &:hover {
+        border-color: color-mix(in oklab, var(--tint) 55%, var(--line-strong));
+      }
+    }
+  }
+  /* A note too long for its card fades out at the bottom. */
+  .note-body-clipped {
+    mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
+  }
   .shadow-overlay {
     box-shadow: var(--overlay-shadow);
   }
@@ -465,5 +484,16 @@
   }
   & input[type="checkbox"] {
     @apply mr-1.5 accent-accent;
+  }
+  /* Ticked checklist items (note cards). */
+  & li:has(> input[type="checkbox"]:checked) {
+    @apply text-muted line-through;
+  }
+  /* Checklist items sit on the left edge, without a bullet. */
+  & li:has(> input[type="checkbox"]) {
+    @apply list-none;
+  }
+  & ul:has(> li > input[type="checkbox"]) {
+    @apply pl-0.5;
   }
 }
