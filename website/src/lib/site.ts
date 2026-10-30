@@ -11,6 +11,8 @@ export const site = {
   // Installers are published as GitHub Releases.
   download: "https://github.com/Shehan17/milestone-space/releases/latest",
   platform: "Windows 10 and 11",
+  author: "Shehan",
+  license: { name: "GNU GPL v3", url: "https://github.com/Shehan17/milestone-space/blob/main/LICENSE" },
 };
 
 // `href` starting with "#" is a section on the home page.
