@@ -35,176 +35,184 @@ function day(offset) {
 const due = (offset) => (offset === null ? null : day(offset));
 
 // ---------- Sample data ----------
+// A freelance developer's week: two client jobs, a finished one, the app itself, a side game, uni work.
 
 const clients = [
-  { key: "northwind", name: "Northwind Studio", email: "hello@northwind.example", notes: "Design agency. Feedback comes as Figma comments; weekly call on Mondays." },
-  { key: "lankafresh", name: "Lanka Fresh Foods", email: "ops@lankafresh.example", notes: "Grocery delivery startup. Contact: Nimal (operations)." },
-  { key: "blueharbor", name: "Blue Harbor Café", email: "owner@blueharbor.example", notes: "Small café, prefers WhatsApp. Invoices at the end of each month." },
+  { key: "goldleaf", name: "Goldleaf Games", email: "studio@goldleaf.example" },
+  { key: "spice", name: "Ceylon Spice Co.", email: "orders@ceylonspice.example" },
+  { key: "dental", name: "Smile Dental Clinic", email: "frontdesk@smiledental.example" },
 ];
 
 // pinned: minutes ago it was pinned (older pins are listed first), or null.
 const projects = [
-  { key: "northwind", client: "northwind", type: "client", name: "Northwind website redesign", status: "active", deadline: 12, color: "#8b5cf6", pinned: 30,
-    description: "New marketing site: home, services, case studies and contact pages. SvelteKit + headless CMS." },
-  { key: "lankafresh", client: "lankafresh", type: "client", name: "Lanka Fresh delivery app", status: "active", deadline: 30, color: "#10b981", pinned: 20,
-    description: "Customer app for ordering groceries, plus a simple admin panel for orders." },
-  { key: "blueharbor", client: "blueharbor", type: "client", name: "Blue Harbor menu site", status: "completed", deadline: -10, color: "#f59e0b", pinned: null,
-    description: "One-page menu site with QR code for the tables." },
-  { key: "portfolio", client: null, type: "personal", name: "Portfolio site v2", status: "active", deadline: 20, color: "#3b82f6", pinned: null,
-    description: "Rebuild the portfolio with case studies and a blog." },
-  { key: "habits", client: null, type: "personal", name: "Habit tracker app", status: "on_hold", deadline: null, color: "#ec4899", pinned: null,
-    description: "Side project: a tiny offline habit tracker. Paused until the client work calms down." },
-  { key: "dsa", client: null, type: "study", name: "Data Structures & Algorithms", status: "active", deadline: 45, color: "#06b6d4", pinned: 10,
-    description: "University module. Weekly labs and a final exam." },
+  { key: "kingdom", client: "goldleaf", type: "client", name: "Tiny Swords Kingdom", status: "active", deadline: 14, color: "#8b5cf6", pinned: 30,
+    description: "Medieval kingdom builder for Android, live on Google Play. Monthly content updates for the studio." },
+  { key: "spice", client: "spice", type: "client", name: "Ceylon Spice Co. online store", status: "active", deadline: 21, color: "#10b981", pinned: 20,
+    description: "Online shop for a family spice business: catalogue, cart and PayHere checkout, plus a simple orders page." },
+  { key: "dental", client: "dental", type: "client", name: "Smile Dental booking site", status: "completed", deadline: -12, color: "#06b6d4", pinned: null,
+    description: "Clinic website with online appointment booking and SMS reminders." },
+  { key: "milestone", client: null, type: "personal", name: "MilestoneSpace", status: "active", deadline: 44, color: "#3b82f6", pinned: 10,
+    description: "This app: an offline workspace for projects, milestones and tasks. Getting it ready for a public release." },
+  { key: "campus", client: null, type: "personal", name: "Campus Helper", status: "active", deadline: 32, color: "#f59e0b", pinned: null,
+    description: "Deadline manager for university students: timetable, assignments and exam countdowns." },
+  { key: "raw", client: null, type: "study", name: "Raw App (final-year project)", status: "active", deadline: 38, color: "#f43f5e", pinned: null,
+    description: "Location-based marketplace that connects customers with verified skilled workers." },
   { key: "aws", client: null, type: "study", name: "AWS Cloud Practitioner exam", status: "active", deadline: 6, color: "#f97316", pinned: null,
     description: "Certification exam. Practice tests every evening this week." },
-  { key: "game", client: null, type: "personal", name: "Pixel Quest (game jam)", status: "active", deadline: 9, color: "#f43f5e", pinned: 5,
-    description: "2D platformer in Godot for the game jam. Lots of things in progress at once: use the Board view." },
+  { key: "wildwood", client: null, type: "personal", name: "Wildwood (survival game)", status: "on_hold", deadline: null, color: "#ec4899", pinned: null,
+    description: "Side project: a cosy 2D survival game. Paused until the Tiny Swords update ships." },
 ];
 
 const milestones = [
-  { key: "nw-design", project: "northwind", title: "Design approved", description: "Client signs off on all page designs.", due: -5, done: true },
-  { key: "nw-build", project: "northwind", title: "Pages built", description: "All pages built and responsive.", due: 5, done: false },
-  { key: "nw-launch", project: "northwind", title: "Launch", description: "DNS switch and announcement.", due: 12, done: false },
-  { key: "lf-mvp", project: "lankafresh", title: "MVP for testers", description: "Browse, cart and checkout working end to end.", due: 9, done: false },
-  { key: "lf-admin", project: "lankafresh", title: "Admin panel", description: "", due: 24, done: false },
-  { key: "bh-live", project: "blueharbor", title: "Site live", description: "", due: -12, done: true },
-  { key: "pf-content", project: "portfolio", title: "Content written", description: "Three case studies and the about page.", due: 7, done: false },
-  { key: "dsa-mid", project: "dsa", title: "Midterm", description: "Covers weeks 1–6.", due: -3, done: true },
-  { key: "dsa-final", project: "dsa", title: "Final exam", description: "", due: 45, done: false },
+  { key: "ts-creatures", project: "kingdom", title: "Creatures & store update", description: "New creatures from the Tiny Swords pack, sold in the store.", due: -9, done: true },
+  { key: "ts-boss", project: "kingdom", title: "Boss update", description: "Roaming Troll boss, rewards and balancing.", due: 3, done: false },
+  { key: "ts-release", project: "kingdom", title: "v1.4 on Google Play", description: "Release build, store listing and rollout.", due: 14, done: false },
+  { key: "sp-design", project: "spice", title: "Design approved", description: "Home, product and checkout pages signed off.", due: -6, done: true },
+  { key: "sp-shop", project: "spice", title: "Shop working end to end", description: "Browse, cart and PayHere checkout in the sandbox.", due: 9, done: false },
+  { key: "sp-launch", project: "spice", title: "Launch", description: "Live payments, domain and the first orders.", due: 21, done: false },
+  { key: "sd-live", project: "dental", title: "Site live", description: "", due: -14, done: true },
+  { key: "ms-notes", project: "milestone", title: "Notes & widget", description: "Keep-style notes and the Today widget.", due: -2, done: true },
+  { key: "ms-release", project: "milestone", title: "Public release", description: "README, license, privacy policy and a GitHub page.", due: 20, done: false },
+  { key: "ch-beta", project: "campus", title: "Beta for classmates", description: "", due: 18, done: false },
+  { key: "raw-proposal", project: "raw", title: "Proposal accepted", description: "", due: -20, done: true },
+  { key: "raw-demo", project: "raw", title: "Final presentation", description: "Demo and slides for the panel.", due: 38, done: false },
   { key: "aws-exam", project: "aws", title: "Exam day", description: "Online proctored, 9:00 AM.", due: 6, done: false },
-  { key: "game-proto", project: "game", title: "Playable prototype", description: "Run, jump, one level.", due: -6, done: true },
-  { key: "game-alpha", project: "game", title: "Alpha", description: "Two levels, enemies, sound.", due: 4, done: false },
-  { key: "game-jam", project: "game", title: "Jam submission", description: "Web build uploaded to itch.io.", due: 9, done: false },
 ];
 
 // due / plan: days from today, or null. plan = the day it was picked for the Today list.
 // status: "todo" (default), "in_progress" or "done"; done: true is short for status "done".
 const tasks = [
-  // Northwind
-  { project: "northwind", milestone: "nw-design", title: "Moodboard and style tiles", priority: "medium", due: -15, done: true },
-  { project: "northwind", milestone: "nw-design", title: "Home page design", priority: "high", due: -8, done: true },
-  { project: "northwind", milestone: "nw-build", title: "Build home page hero and sections", priority: "high", due: 0, plan: 0, status: "in_progress" },
-  { project: "northwind", milestone: "nw-build", title: "Services page", priority: "high", due: 2, plan: 0 },
-  { project: "northwind", milestone: "nw-build", title: "Case study template", priority: "medium", due: 4 },
-  { project: "northwind", milestone: "nw-build", title: "Contact form with spam protection", priority: "medium", due: -1, plan: -1 },
-  { project: "northwind", milestone: "nw-launch", title: "Set up redirects from old URLs", priority: "low", due: 10 },
-  { project: "northwind", milestone: "nw-launch", title: "Lighthouse pass (90+ on mobile)", priority: "medium", due: 11 },
-  { project: "northwind", milestone: null, title: "Send invoice for design phase", priority: "high", due: -2 },
-  // Lanka Fresh
-  { project: "lankafresh", milestone: "lf-mvp", title: "Product list with categories", priority: "high", due: -4, done: true },
-  { project: "lankafresh", milestone: "lf-mvp", title: "Cart and quantity controls", priority: "high", due: 1, plan: 0, done: true },
-  { project: "lankafresh", milestone: "lf-mvp", title: "Checkout with cash on delivery", priority: "high", due: 3, status: "in_progress" },
-  { project: "lankafresh", milestone: "lf-mvp", title: "Order confirmation SMS", priority: "medium", due: 8 },
-  { project: "lankafresh", milestone: "lf-admin", title: "Orders table with status filter", priority: "medium", due: 18 },
-  { project: "lankafresh", milestone: "lf-admin", title: "Daily sales export (CSV)", priority: "low", due: 22 },
-  { project: "lankafresh", milestone: null, title: "Ask Nimal for the delivery zones list", priority: "medium", due: null, plan: -1 },
-  // Blue Harbor (completed project)
-  { project: "blueharbor", milestone: "bh-live", title: "Menu page with prices", priority: "high", due: -14, done: true },
-  { project: "blueharbor", milestone: "bh-live", title: "QR code for tables", priority: "medium", due: -13, done: true },
-  { project: "blueharbor", milestone: null, title: "Hand over hosting login", priority: "low", due: -10, done: true },
-  // Portfolio
-  { project: "portfolio", milestone: "pf-content", title: "Write Northwind case study", priority: "medium", due: 6 },
-  { project: "portfolio", milestone: "pf-content", title: "Rewrite the about page", priority: "low", due: 7 },
-  { project: "portfolio", milestone: null, title: "Pick a new font pairing", priority: "low", due: null, done: true },
-  { project: "portfolio", milestone: null, title: "Add a blog with markdown posts", priority: "low", due: 19 },
-  // Habit tracker (on hold)
-  { project: "habits", milestone: null, title: "Sketch the streak screen", priority: "low", due: null },
-  { project: "habits", milestone: null, title: "Try local notifications on Android", priority: "low", due: null },
-  // DSA
-  { project: "dsa", milestone: "dsa-mid", title: "Revise sorting algorithms", priority: "high", due: -5, done: true },
-  { project: "dsa", milestone: null, title: "Lab 7: binary search trees", priority: "high", due: 1, plan: 0 },
-  { project: "dsa", milestone: null, title: "Read chapter 9 (graphs)", priority: "medium", due: 5, status: "in_progress" },
-  { project: "dsa", milestone: null, title: "Lab 6 report", priority: "high", due: -3, plan: -3 },
-  { project: "dsa", milestone: "dsa-final", title: "Make a summary sheet for each topic", priority: "medium", due: 35 },
+  // Tiny Swords Kingdom: lots in progress at once, the Board view shows it best
+  { project: "kingdom", milestone: "ts-creatures", title: "Add more creatures from the Tiny Swords pack", priority: "high", due: -15, done: true },
+  { project: "kingdom", milestone: "ts-creatures", title: "Sell the Troll and the Hammer Guy in the store", priority: "high", due: -13, done: true },
+  { project: "kingdom", milestone: "ts-creatures", title: "Show bought creatures in the garrison panel when building squads", priority: "high", due: -10, done: true },
+  { project: "kingdom", milestone: null, title: "Fix issues from the Google Play review", priority: "high", due: -16, done: true },
+  { project: "kingdom", milestone: "ts-boss", title: "Roaming boss: the Troll walks the world map and attacks", priority: "high", due: 0, plan: 0, status: "in_progress" },
+  { project: "kingdom", milestone: "ts-boss", title: "Boss fight rewards and difficulty balancing", priority: "medium", due: 2, status: "in_progress" },
+  { project: "kingdom", milestone: "ts-boss", title: "Camera shake and hit force on the Troll's attack", priority: "medium", due: 2, status: "in_progress" },
+  { project: "kingdom", milestone: "ts-boss", title: "Fix: tooltips stop working after a battle", priority: "high", due: -1, plan: -1 },
+  { project: "kingdom", milestone: "ts-release", title: "Equipment shop paid with gems", priority: "medium", due: 6, status: "in_progress" },
+  { project: "kingdom", milestone: "ts-release", title: "Weather and seasonal effects (rain, clouds)", priority: "low", due: 8, status: "in_progress" },
+  { project: "kingdom", milestone: "ts-release", title: "Add the horse", priority: "low", due: 9 },
+  { project: "kingdom", milestone: "ts-release", title: "Unit and building selection", priority: "medium", due: 10 },
+  { project: "kingdom", milestone: "ts-release", title: "Night vignette effect", priority: "low", due: 10 },
+  { project: "kingdom", milestone: "ts-release", title: "Squad banner effects", priority: "low", due: 11 },
+  { project: "kingdom", milestone: "ts-release", title: "Fix: troops get stuck on walls", priority: "high", due: 4 },
+  { project: "kingdom", milestone: "ts-release", title: "Fix: no sound after loading a save", priority: "medium", due: 5 },
+  { project: "kingdom", milestone: "ts-release", title: "Tweak the main menu and market visuals", priority: "medium", due: 12 },
+  { project: "kingdom", milestone: "ts-release", title: "Update the store listing screenshots", priority: "medium", due: 13 },
+  // Ceylon Spice Co.
+  { project: "spice", milestone: "sp-design", title: "Home and product page designs", priority: "high", due: -9, done: true },
+  { project: "spice", milestone: "sp-shop", title: "Product catalogue with categories and search", priority: "high", due: 1, plan: 0, status: "in_progress" },
+  { project: "spice", milestone: "sp-shop", title: "Cart with pack sizes (100 g / 250 g / 1 kg)", priority: "high", due: 4 },
+  { project: "spice", milestone: "sp-shop", title: "PayHere checkout in sandbox mode", priority: "high", due: 7 },
+  { project: "spice", milestone: "sp-shop", title: "Order confirmation email", priority: "medium", due: 8 },
+  { project: "spice", milestone: "sp-launch", title: "Product photos: crop and compress", priority: "medium", due: 15 },
+  { project: "spice", milestone: "sp-launch", title: "Point the domain and set up SSL", priority: "medium", due: 20 },
+  { project: "spice", milestone: null, title: "Send invoice for the design phase", priority: "high", due: -2 },
+  // Smile Dental (completed)
+  { project: "dental", milestone: "sd-live", title: "Appointment booking form", priority: "high", due: -18, done: true },
+  { project: "dental", milestone: "sd-live", title: "SMS reminders a day before", priority: "medium", due: -15, done: true },
+  { project: "dental", milestone: null, title: "Hand over the hosting login", priority: "low", due: -12, done: true },
+  // MilestoneSpace
+  { project: "milestone", milestone: "ms-notes", title: "Keep-style notes for projects and clients", priority: "high", due: -3, done: true },
+  { project: "milestone", milestone: "ms-notes", title: "Today widget on the desktop", priority: "medium", due: -5, done: true },
+  { project: "milestone", milestone: "ms-release", title: "Add screenshots to the README", priority: "high", due: 0, plan: 0, status: "in_progress" },
+  { project: "milestone", milestone: "ms-release", title: "Update the license", priority: "medium", due: 5 },
+  { project: "milestone", milestone: "ms-release", title: "Write a privacy policy", priority: "low", due: 12 },
+  { project: "milestone", milestone: "ms-release", title: "GitHub page with downloads", priority: "medium", due: 15 },
+  { project: "milestone", milestone: null, title: "Recurring tasks", priority: "high", due: null },
+  { project: "milestone", milestone: null, title: "Fix the scrollbar in the project tabs", priority: "medium", due: null },
+  { project: "milestone", milestone: null, title: "Share it on LinkedIn", priority: "low", due: null },
+  // Campus Helper
+  { project: "campus", milestone: "ch-beta", title: "Import the timetable from a CSV", priority: "high", due: 5 },
+  { project: "campus", milestone: "ch-beta", title: "Assignment reminders a day before", priority: "medium", due: 10 },
+  { project: "campus", milestone: "ch-beta", title: "Exam countdown on the home screen", priority: "medium", due: 14, status: "in_progress" },
+  { project: "campus", milestone: null, title: "Ask classmates for feedback", priority: "low", due: null },
+  // Raw App
+  { project: "raw", milestone: "raw-proposal", title: "Write the project proposal", priority: "high", due: -24, done: true },
+  { project: "raw", milestone: "raw-demo", title: "Worker verification flow (NIC + photo)", priority: "high", due: 9, status: "in_progress" },
+  { project: "raw", milestone: "raw-demo", title: "Map search for nearby workers", priority: "high", due: 16 },
+  { project: "raw", milestone: "raw-demo", title: "Ratings and reviews", priority: "medium", due: 24 },
+  { project: "raw", milestone: "raw-demo", title: "Presentation slides (soft copy)", priority: "medium", due: 34 },
+  { project: "raw", milestone: null, title: "Weekly progress report to the supervisor", priority: "high", due: -3, plan: -3 },
   // AWS
   { project: "aws", milestone: "aws-exam", title: "Practice test 1", priority: "high", due: -1, done: true },
   { project: "aws", milestone: "aws-exam", title: "Practice test 2", priority: "high", due: 0, plan: 0 },
   { project: "aws", milestone: "aws-exam", title: "Review billing and pricing questions", priority: "medium", due: 3 },
   { project: "aws", milestone: "aws-exam", title: "Book the exam slot", priority: "high", due: -2 },
-  // Pixel Quest: a game project with many tasks in progress at once
-  { project: "game", milestone: "game-proto", title: "Player movement and jumping", priority: "high", due: -9, done: true },
-  { project: "game", milestone: "game-proto", title: "Tilemap and first level layout", priority: "high", due: -7, done: true },
-  { project: "game", milestone: "game-proto", title: "Camera follow with smoothing", priority: "medium", due: -6, done: true },
-  { project: "game", milestone: "game-alpha", title: "Enemy AI: patrol and chase", priority: "high", due: 2, status: "in_progress" },
-  { project: "game", milestone: "game-alpha", title: "Health and damage system", priority: "high", due: 1, plan: 0, status: "in_progress" },
-  { project: "game", milestone: "game-alpha", title: "Pixel art: player run cycle", priority: "medium", due: 3, status: "in_progress" },
-  { project: "game", milestone: "game-alpha", title: "Collectible coins and score UI", priority: "medium", due: 3, status: "in_progress" },
-  { project: "game", milestone: "game-alpha", title: "Sound effects: jump, coin, hit", priority: "low", due: 4, status: "in_progress" },
-  { project: "game", milestone: "game-alpha", title: "Level 2: cave theme", priority: "medium", due: 4 },
-  { project: "game", milestone: "game-alpha", title: "Checkpoints", priority: "medium", due: 4 },
-  { project: "game", milestone: "game-alpha", title: "Pause menu", priority: "low", due: null },
-  { project: "game", milestone: null, title: "Bug: player clips through moving platforms", priority: "high", due: 0, plan: 0 },
-  { project: "game", milestone: "game-jam", title: "Boss fight design doc", priority: "medium", due: 6, status: "in_progress" },
-  { project: "game", milestone: "game-jam", title: "Main menu and title screen", priority: "medium", due: 7 },
-  { project: "game", milestone: "game-jam", title: "Web (HTML5) build and test", priority: "high", due: 8 },
-  { project: "game", milestone: "game-jam", title: "itch.io page: screenshots and description", priority: "medium", due: 9 },
-  { project: "game", milestone: null, title: "Background music loop", priority: "low", due: null },
+  // Wildwood (on hold)
+  { project: "wildwood", milestone: null, title: "Wood only from trees grown from seeds", priority: "medium", due: null, done: true },
+  { project: "wildwood", milestone: null, title: "Dialog system for villagers", priority: "medium", due: null },
+  { project: "wildwood", milestone: null, title: "Day and night cycle", priority: "low", due: null },
 ];
 
-const notes = {
-  northwind: `## Brief
-- Clean, editorial look. **No stock photos.**
-- Must be editable by the client (CMS).
-
-## Decisions
-1. SvelteKit + Sanity
-2. Hosting on Netlify, client pays
-
-> Next call: go through the services copy.`,
-  dsa: `## Exam topics
-- Arrays, linked lists, stacks, queues
-- Trees: BST, AVL, heaps
-- Graphs: BFS, DFS, Dijkstra
-
-Lab submissions go to the course page by **Friday 11:59 PM**.`,
-  game: `## Jam
-- Theme: **"One more try"**
-- Engine: Godot 4, 320x180 pixel art, scaled x4
-
-## Scope
-Two levels and a boss. Anything else goes in the Inbox for after the jam.`,
-};
+// Note cards, in board order. A client's notes use `client` instead of `project`.
+const notes = [
+  { project: "kingdom", title: "Update plan", pinned: true, content: `- Boss update first, then **v1.4** with the shop
+- Studio reviews a build every **Friday**` },
+  { project: "kingdom", title: "Before release", color: "#10b981", content: `- [x] Privacy policy link in settings
+- [x] New store icon
+- [ ] Test on a low-end phone
+- [ ] Store listing screenshots
+- [ ] Staged rollout at 20%` },
+  { project: "kingdom", title: "Balancing", color: "#f59e0b", content: `- Troll: **900 HP**, 45 damage
+- Hammer Guy: 260 HP, 18 damage
+- Boss reward: 150 gems` },
+  { project: "kingdom", title: "", content: "> Ideas for later: WebGL build, co-op raids." },
+  { project: "spice", title: "Brief", pinned: true, content: `- Warm, simple look with **real product photos**
+- Most buyers order on phones` },
+  { project: "spice", title: "Payments", color: "#3b82f6", content: "PayHere sandbox first. Live keys only after the client signs the merchant form." },
+  { project: "milestone", title: "Release checklist", pinned: true, content: `- [x] App icon
+- [x] Color themes
+- [ ] README with screenshots
+- [ ] License and privacy policy` },
+  { project: "milestone", title: "Ideas", color: "#8b5cf6", content: `- Recurring tasks
+- Time tracking per project` },
+  { project: "raw", title: "Supervisor feedback", color: "#f43f5e", content: "Focus the demo on **verification** and **search**; payments can be mocked." },
+  { client: "goldleaf", title: "How they work", content: "Small indie studio. Feedback comes as Trello cards; build review every **Friday**." },
+  { client: "spice", title: "Contact", color: "#10b981", content: "Nimali (owner). Prefers WhatsApp, calls before noon." },
+  { client: "dental", title: "", content: `Paid in full.
+- [ ] Ask for a testimonial` },
+];
 
 const links = [
-  { project: "northwind", title: "Repository", url: "https://github.com/example/northwind-site", type: "github" },
-  { project: "northwind", title: "Designs", url: "https://www.figma.com/file/example/northwind", type: "figma" },
-  { project: "northwind", title: "Staging", url: "https://northwind-staging.example.com", type: "website" },
-  { project: "lankafresh", title: "Repository", url: "https://github.com/example/lankafresh-app", type: "github" },
-  { project: "lankafresh", title: "Shared folder", url: "https://drive.google.com/drive/folders/example", type: "drive" },
-  { project: "blueharbor", title: "Live site", url: "https://blueharbor.example.com", type: "website" },
-  { project: "dsa", title: "Course notes", url: "https://docs.google.com/document/d/example", type: "docs" },
+  { project: "kingdom", title: "Repository", url: "https://github.com/example/tiny-swords-kingdom", type: "github" },
+  { project: "kingdom", title: "Google Play", url: "https://play.google.com/store/apps/details?id=com.example.tinyswords", type: "store" },
+  { project: "kingdom", title: "Shared assets", url: "https://drive.google.com/drive/folders/example", type: "drive" },
+  { project: "spice", title: "Repository", url: "https://github.com/example/ceylon-spice-store", type: "github" },
+  { project: "spice", title: "Designs", url: "https://www.figma.com/file/example/ceylon-spice", type: "figma" },
+  { project: "spice", title: "Staging", url: "https://ceylonspice-staging.example.com", type: "website" },
+  { project: "dental", title: "Live site", url: "https://smiledental.example.com", type: "website" },
+  { project: "milestone", title: "Repository", url: "https://github.com/example/milestone-space", type: "github" },
+  { project: "raw", title: "Project report", url: "https://docs.google.com/document/d/example", type: "docs" },
   { project: "aws", title: "Exam guide", url: "https://aws.amazon.com/certification/certified-cloud-practitioner/", type: "docs" },
-  { project: "game", title: "Repository", url: "https://github.com/example/pixel-quest", type: "github" },
-  { project: "game", title: "itch.io page", url: "https://example.itch.io/pixel-quest", type: "store" },
 ];
 
 const details = [
-  { project: "northwind", label: "Hourly rate", value: "USD 25" },
-  { project: "northwind", label: "Staging login", value: "preview / northwind2026" },
-  { project: "lankafresh", label: "Contact", value: "Nimal — +94 77 000 0000" },
-  { project: "lankafresh", label: "Fixed price", value: "LKR 450,000 (50% paid)" },
-  { project: "dsa", label: "Module code", value: "CS2012" },
+  { project: "kingdom", label: "Package name", value: "com.example.tinyswords" },
+  { project: "kingdom", label: "Rate", value: "USD 20 / hour" },
+  { project: "spice", label: "Fixed price", value: "LKR 180,000 (50% paid)" },
+  { project: "spice", label: "Contact", value: "Nimali, +94 77 000 0000" },
+  { project: "raw", label: "Supervisor", value: "Dr. Perera" },
   { project: "aws", label: "Exam code", value: "CLF-C02" },
-  { project: "game", label: "Engine", value: "Godot 4.3" },
-  { project: "game", label: "Jam deadline", value: "Sunday 23:59 (UTC)" },
 ];
 
 // Misc tasks: small everyday jobs with no project (just a title and a priority; no due date).
 const miscTasks = [
   { title: "Renew the domain for the portfolio", priority: "high" },
-  { title: "Reply to the recruiter email", priority: "medium", plan: 0 },
-  { title: "Update Node and npm on the laptop", priority: "low" },
+  { title: "Pay the internet bill", priority: "medium", plan: 0 },
+  { title: "Update Windows and restart", priority: "low" },
   { title: "Back up the phone photos", priority: "low", done: true },
 ];
 
 const inboxItems = [
-  { text: "Blog post idea: what I learned moving to Svelte 5 runes", minutesAgo: 25 },
-  { text: "Ask Northwind if they want a newsletter signup", minutesAgo: 180 },
-  { text: "Look into Tauri auto-updater", minutesAgo: 60 * 26 },
+  { text: "Try a WebGL build of Tiny Swords Kingdom", minutesAgo: 25 },
+  { text: "Ask Ceylon Spice if they want a wholesale price list page", minutesAgo: 180 },
+  { text: "Blog post: building a desktop app with Tauri 2 and Svelte 5", minutesAgo: 60 * 26 },
 ];
 
-// This repository, so "Open folder" / "Open in VS Code" have a real folder to open.
+// This repository (the MilestoneSpace sample project), so "Open folder" / "Open in VS Code" have a real folder to open.
 const sampleFolder = process.cwd();
 
 // ---------- Write ----------
@@ -216,7 +224,7 @@ db.exec("BEGIN");
 try {
   if (reset) {
     // Children first; the plugin's tables only.
-    for (const t of ["inbox_items", "project_details", "project_links", "project_notes", "tasks", "milestones", "projects", "clients"]) {
+    for (const t of ["inbox_items", "project_details", "project_links", "project_notes", "notes", "tasks", "milestones", "projects", "clients"]) {
       db.exec(`DELETE FROM ${t}`);
     }
   }
@@ -244,7 +252,7 @@ try {
     insert("INSERT INTO inbox_items (text, created_at) VALUES (?, datetime('now', ?))", item.text, `-${item.minutesAgo} minutes`);
   }
   if (!has("SELECT 1 FROM projects WHERE local_path IS NOT NULL")) {
-    db.prepare("UPDATE projects SET local_path = ? WHERE name = ?").run(sampleFolder, projects[0].name);
+    db.prepare("UPDATE projects SET local_path = ? WHERE name = ?").run(sampleFolder, "MilestoneSpace");
   }
   db.exec("COMMIT");
 } catch (e) {
@@ -254,15 +262,18 @@ try {
 
 /**
  * Adds every sample project whose name isn't in the database yet, with its milestones, tasks,
- * note, links and details. Clients are matched by name too. Returns the names added.
+ * notes, links and details, and the notes of clients added now. Clients are matched by name too. Returns the names added.
  */
 function seedProjects() {
   const ids = { client: {}, project: {}, milestone: {} };
   const idByName = (table, name) => db.prepare(`SELECT id FROM ${table} WHERE name = ?`).get(name)?.id;
 
+  const newClients = new Set();
   for (const c of clients) {
-    ids.client[c.key] =
-      idByName("clients", c.name) ?? insert("INSERT INTO clients (name, email, notes) VALUES (?, ?, ?)", c.name, c.email, c.notes);
+    ids.client[c.key] = idByName("clients", c.name);
+    if (ids.client[c.key] !== undefined) continue;
+    ids.client[c.key] = insert("INSERT INTO clients (name, email) VALUES (?, ?)", c.name, c.email);
+    newClients.add(c.key);
   }
   const added = [];
   for (const p of projects) {
@@ -293,9 +304,17 @@ function seedProjects() {
       due(t.due), status, status === "done" ? 1 : 0, due(t.plan ?? null)
     );
   }
-  for (const [project, content] of Object.entries(notes)) {
-    if (!(project in ids.project)) continue;
-    insert("INSERT INTO project_notes (project_id, content) VALUES (?, ?)", ids.project[project], content);
+  // Notes of the projects and clients added just now, in board order (sort_order counts up).
+  let noteOrder = 0;
+  for (const n of notes) {
+    const isNew = n.project ? isNewProject(n) : newClients.has(n.client);
+    if (!isNew) continue;
+    insert(
+      `INSERT INTO notes (project_id, client_id, title, content, color, pinned_at, sort_order)
+       VALUES (?, ?, ?, ?, ?, CASE WHEN ? THEN datetime('now') END, ?)`,
+      n.project ? ids.project[n.project] : null, n.client ? ids.client[n.client] : null, n.title, n.content,
+      n.color ?? null, n.pinned ? 1 : 0, noteOrder++
+    );
   }
   // sort_order counts up within each project, like addProjectLink / addProjectDetail.
   const order = {};
@@ -318,7 +337,7 @@ function seedProjects() {
 const count = (t) => db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n;
 console.log(`${isNew ? "Created" : reset ? "Reset" : "Updated"} ${dbPath}`);
 console.log(
-  ["clients", "projects", "milestones", "tasks", "inbox_items", "project_notes", "project_links", "project_details"]
+  ["clients", "projects", "milestones", "tasks", "inbox_items", "notes", "project_links", "project_details"]
     .map((t) => `${t}: ${count(t)}`)
     .join(", ")
 );

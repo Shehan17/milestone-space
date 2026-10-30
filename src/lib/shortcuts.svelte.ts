@@ -164,7 +164,7 @@ export const shortcutGroups = (): { title: string; items: ShortcutInfo[] }[] => 
       { keys: [["←"], ["→"]], label: "In quick capture or the New dialog: what to add (Inbox, Today, project task, Misc)" },
       { keys: [["↑"], ["↓"]], label: "In quick capture or the New dialog: previous / next project for the task" },
       { keys: [["?"]], label: "Show keyboard shortcuts" },
-      { keys: [["N"]], label: "New: the page's own (task, project, client, inbox item), else the New dialog" },
+      { keys: [["N"]], label: "New: the page's own (task, project, client, note, inbox item), else the New dialog" },
       { keys: [["J"]], label: "Focus the first task" },
       { keys: [["Ctrl", "Z"]], label: "Undo the last delete (while its message shows)" },
       { keys: [["["]], label: "Collapse or expand the sidebar" },
@@ -204,6 +204,23 @@ export const shortcutGroups = (): { title: string; items: ShortcutInfo[] }[] => 
       { keys: [["Enter"]], label: "Edit" },
       { keys: [["S"]], label: "Move to the stash" },
       { keys: [["Delete"]], label: "Delete (Ctrl+Z brings it back)" },
+    ],
+  },
+  {
+    title: "Client page",
+    items: [
+      { keys: [["N"]], label: "New note" },
+      { keys: [["E"]], label: "Edit client" },
+    ],
+  },
+  {
+    title: "Note card",
+    items: [
+      { keys: [["←"], ["→"]], label: "Move earlier / later (or drag it)" },
+      { keys: [["Enter"]], label: "Open" },
+      { keys: [["P"]], label: "Pin to the top / unpin" },
+      { keys: [["Delete"]], label: "Delete (Ctrl+Z brings it back)" },
+      { keys: [["Ctrl", "Enter"]], label: "In an open note: close it (it saves as you type)" },
     ],
   },
   {

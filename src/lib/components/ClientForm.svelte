@@ -13,6 +13,3 @@
 <Field label="Email" error={emailOk(values.email) ? null : "That doesn't look like an email address"}>
   <input class="input" type="email" bind:value={values.email} placeholder="name@company.com" />
 </Field>
-<Field label="Notes">
-  <textarea class="input" rows="3" bind:value={values.notes}></textarea>
-</Field>

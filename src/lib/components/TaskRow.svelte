@@ -14,6 +14,8 @@
   interface Props {
     task: Task;
     showProject?: boolean;
+    /** Off where the list is already one milestone's tasks. */
+    showMilestone?: boolean;
     ontoggle: TaskAction;
     onedit: TaskAction;
     /** Deletes right away; the page shows an Undo message. */
@@ -24,8 +26,9 @@
     onstash?: TaskAction;
   }
 
-  let { task, showProject = false, ontoggle, onedit, ondelete, onplan, onstash }: Props = $props();
+  let { task, showProject = false, showMilestone = true, ontoggle, onedit, ondelete, onplan, onstash }: Props = $props();
 
+  let milestoneTitle = $derived(showMilestone ? task.milestone_title : null);
   let plannedToday = $derived(task.planned_for === todayString());
   let checkLeft = $derived(settings.done_toggle_side === "left");
 
@@ -111,7 +114,7 @@
     <p class="truncate text-sm {task.is_done ? 'text-faint line-through' : 'text-fg'}">
       {task.title}
     </p>
-    {#if showProject || task.milestone_title || task.status === "in_progress"}
+    {#if showProject || milestoneTitle || task.status === "in_progress"}
       <p class="flex items-center gap-1.5 truncate text-xs text-faint">
         {#if task.status === "in_progress"}
           <span class="inline-flex shrink-0 items-center gap-1 text-accent-text">
@@ -127,10 +130,10 @@
             <ProjectDot color={task.project_color ?? MISC_COLOR} /><span class="truncate">{task.project_name ?? MISC_LABEL}</span>
           </a>
         {/if}
-        {#if task.milestone_title}
+        {#if milestoneTitle}
           {#if showProject}<span aria-hidden="true">·</span>{/if}
           <span class="inline-flex min-w-0 items-center gap-1">
-            {#if !showProject}<Icon name="flag" size={12} />{/if}<span class="truncate">{task.milestone_title}</span>
+            {#if !showProject}<Icon name="flag" size={12} />{/if}<span class="truncate">{milestoneTitle}</span>
           </span>
         {/if}
       </p>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { flip } from "svelte/animate";
+  import { SvelteSet } from "svelte/reactivity";
   import { goto, replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import DeadlineLabel from "$lib/components/DeadlineLabel.svelte";
@@ -8,6 +9,7 @@
   import Icon from "$lib/components/Icon.svelte";
   import MilestoneForm from "$lib/components/MilestoneForm.svelte";
   import Modal from "$lib/components/Modal.svelte";
+  import NoteBoard from "$lib/components/NoteBoard.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import PriorityBadge from "$lib/components/PriorityBadge.svelte";
   import ProgressBar from "$lib/components/ProgressBar.svelte";
@@ -16,7 +18,6 @@
   import ProjectDot from "$lib/components/ProjectDot.svelte";
   import ProjectForm, { emptyProject } from "$lib/components/ProjectForm.svelte";
   import ProjectLinks from "$lib/components/ProjectLinks.svelte";
-  import ProjectNotes from "$lib/components/ProjectNotes.svelte";
   import Skeleton from "$lib/components/Skeleton.svelte";
   import Tabs from "$lib/components/Tabs.svelte";
   import TaskBoard from "$lib/components/TaskBoard.svelte";
@@ -83,6 +84,7 @@
       taskView = readTaskView(id);
       milestoneFilter = "all";
       stashOpen = false;
+      openMilestones.clear();
     }
     project = p;
     milestones = m;
@@ -174,6 +176,20 @@
         await reload();
       });
     }
+  }
+
+  /** Milestones opened on the Milestones tab to show their tasks. */
+  const openMilestones = new SvelteSet<number>();
+
+  function toggleMilestoneOpen(id: number) {
+    if (openMilestones.has(id)) openMilestones.delete(id);
+    else openMilestones.add(id);
+  }
+
+  /** A click anywhere on a milestone card opens it, except on its buttons and its task list. */
+  function onMilestoneCardClick(e: MouseEvent, id: number) {
+    if ((e.target as HTMLElement).closest("button, a, input, [data-milestone-tasks]")) return;
+    toggleMilestoneOpen(id);
   }
 
   function milestoneProgress(milestoneId: number) {
@@ -623,6 +639,7 @@
         <ol>
           {#each milestones as m, i (m.id)}
             {@const progress = milestoneProgress(m.id)}
+            {@const open = openMilestones.has(m.id)}
             <li class="flex gap-4">
               <div class="flex w-6 shrink-0 flex-col items-center">
                 <button
@@ -637,14 +654,24 @@
                 ></button>
                 {#if i < milestones.length - 1}<span class="w-0.5 flex-1 bg-line"></span>{/if}
               </div>
-              <div class="group card mb-3 flex min-w-0 flex-1 flex-col gap-2.5 px-4.5 py-4">
+              <!-- The title button opens it from the keyboard; the rest of the card is a bigger click target. -->
+              <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+              <div
+                class="group card mb-3 flex min-w-0 flex-1 cursor-pointer flex-col gap-2.5 px-4.5 py-4"
+                onclick={(e) => onMilestoneCardClick(e, m.id)}
+              >
                 <div class="flex items-center justify-between gap-3">
                   <button
                     type="button"
-                    class="min-w-0 cursor-pointer truncate text-left font-semibold {m.is_done ? 'text-faint line-through' : 'text-strong'}"
-                    onclick={() => openEditMilestone(m)}
+                    class="flex min-w-0 cursor-pointer items-center gap-1.5 text-left font-semibold {m.is_done
+                      ? 'text-faint line-through'
+                      : 'text-strong'}"
+                    aria-expanded={open}
+                    title={open ? "Hide tasks" : "Show tasks"}
+                    onclick={() => toggleMilestoneOpen(m.id)}
                   >
-                    {m.title}
+                    <span class="truncate">{m.title}</span>
+                    <span class="shrink-0 text-faint"><Icon name={open ? "up" : "down"} size={16} /></span>
                   </button>
                   <div class="flex shrink-0 items-center gap-2">
                     <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
@@ -672,6 +699,28 @@
                   <ProgressBar done={progress.done} total={progress.total} color={project.color} />
                   <span class="text-xs text-faint tabular-nums">{progress.done}/{progress.total} tasks</span>
                 </div>
+                {#if open}
+                  <div class="-mx-4.5 -mb-4 cursor-auto divide-y divide-line border-t border-line" data-milestone-tasks>
+                    {#each tasks.filter((t) => t.milestone_id === m.id) as task (task.id)}
+                      <div animate:flip={{ duration: ms(200) }}>
+                        <TaskRow
+                          {task}
+                          showMilestone={false}
+                          ontoggle={toggleTask}
+                          onedit={openEditTask}
+                          ondelete={removeTask}
+                          onplan={togglePlanned}
+                          onstash={moveToStash}
+                        />
+                      </div>
+                    {:else}
+                      <p class="px-5 py-3.5 text-xs text-faint">
+                        No tasks in this milestone yet.
+                        <button type="button" class="link" onclick={() => openNewTask(m.id)}>Add a task</button>
+                      </p>
+                    {/each}
+                  </div>
+                {/if}
               </div>
             </li>
           {/each}
@@ -809,7 +858,7 @@
       {/if}
     {:else}
       <div class="flex flex-wrap items-start gap-5">
-        <div class="min-w-0 flex-[1_1_27.5rem]"><ProjectNotes {projectId} /></div>
+        <div class="min-w-0 flex-[1_1_27.5rem]"><NoteBoard owner={{ type: "project", id: projectId }} /></div>
         <div class="flex min-w-0 flex-[1_1_17.5rem] flex-col gap-5">
           <ProjectLinks {projectId} />
           <ProjectDetails {projectId} />

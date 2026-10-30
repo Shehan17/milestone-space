@@ -17,7 +17,7 @@
 
   let formOpen = $state(false);
   let editingId = $state<number | null>(null);
-  let draft = $state<ClientInput>({ name: "", email: "", notes: "" });
+  let draft = $state<ClientInput>({ name: "", email: "" });
   let toDelete = $state<Client | null>(null);
 
   async function load() {
@@ -29,13 +29,13 @@
 
   function openNew() {
     editingId = null;
-    draft = { name: "", email: "", notes: "" };
+    draft = { name: "", email: "" };
     formOpen = true;
   }
 
   function openEdit(client: Client) {
     editingId = client.id;
-    draft = { name: client.name, email: client.email, notes: client.notes };
+    draft = { name: client.name, email: client.email };
     formOpen = true;
   }
 
@@ -85,10 +85,10 @@
           <span class="grid size-9.5 shrink-0 place-items-center rounded-full bg-selected font-semibold text-fg" aria-hidden="true">
             {client.name.trim().charAt(0).toUpperCase() || "?"}
           </span>
-          <button type="button" class="min-w-0 flex-1 cursor-pointer text-left" onclick={() => openEdit(client)}>
+          <a href="/clients/{client.id}" class="min-w-0 flex-1 text-left" title="Open {client.name}: projects and notes">
             <p class="truncate font-medium text-strong">{client.name}</p>
-            <p class="truncate text-xs text-faint" title={client.notes || undefined}>{client.email || "No email"}</p>
-          </button>
+            <p class="truncate text-xs text-faint">{client.email || "No email"}</p>
+          </a>
           {#if client.email}
             <button
               type="button"
