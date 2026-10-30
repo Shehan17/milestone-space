@@ -13,7 +13,7 @@
     "tauri": "tauri",
     "seed:dev": "node scripts/seed-dev.mjs"
   },
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "dependencies": {
     "@fontsource-variable/onest": "^5.3.1",
     "@tailwindcss/vite": "^4.3.3",
