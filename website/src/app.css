@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/*
+ * The website uses the app's Aurora colors (src/app.css in the app): graphite with a blue accent.
+ * Like the app, components use only these semantic tokens (bg-surface, text-muted, border-line...),
+ * never Tailwind palette colors.
+ */
+:root {
+  color-scheme: dark;
+  --chrome: #121212;
+  --canvas: #191919;
+  --surface: #1f1f1f;
+  --raised: #232323;
+  --hover: #242424;
+  --line: #2b2b2b;
+  --line-strong: #3a3a3a;
+  --strong: #f2f2f2;
+  --fg: #dcdcdc;
+  --muted: #ababab;
+  --faint: #959595;
+  --accent: #2870e6;
+  --accent-hover: #2263d6;
+  --accent-text: #7fb2ff;
+  --on-accent: #ffffff;
+}
+
+@theme inline {
+  --font-sans: "Onest Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-chrome: var(--chrome);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-strong: var(--strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-on-accent: var(--on-accent);
+
+  --radius-control: 6px;
+  --radius-item: 8px;
+  --radius-card: 10px;
+  --radius-dialog: 12px;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem; /* below the sticky header */
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+  body {
+    @apply bg-chrome font-sans text-fg antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Page width and side padding for every section. */
+  .container-page {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-control px-4 py-2.5 text-sm font-medium transition-colors duration-150;
+  }
+  .btn-primary {
+    @apply bg-accent text-on-accent hover:bg-accent-hover;
+  }
+  .btn-secondary {
+    @apply border border-line-strong bg-surface text-strong hover:bg-hover;
+  }
+  .btn-lg {
+    @apply px-5 py-3 text-base;
+  }
+
+  .card {
+    @apply rounded-card border border-line bg-surface;
+  }
+
+  .eyebrow {
+    @apply text-xs font-semibold tracking-wider text-accent-text uppercase;
+  }
+
+  .section-title {
+    @apply text-3xl font-semibold tracking-tight text-strong sm:text-4xl;
+  }
+
+  .link {
+    @apply text-accent-text underline-offset-4 hover:underline;
+  }
+
+  .kbd {
+    @apply rounded border border-line-strong bg-raised px-1.5 py-0.5 font-sans text-[0.85em] text-strong;
+  }
+}
