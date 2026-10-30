@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app-icon.png" alt="MilestoneSpace icon" width="96" />
+  <img src="MilestonespaceIcon.png" alt="MilestoneSpace icon" width="96" />
 </p>
 
 <h1 align="center">MilestoneSpace</h1>

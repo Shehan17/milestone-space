@@ -195,6 +195,18 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
   `ProjectAvatar` (first letter on a tint) on cards and headers. `Tabs` is a segmented control
   (`variant="underline"` for the project page tabs); `PageHeader` takes `eyebrow`, `back` and `narrow`.
 
+## Website
+
+- `website/` is the landing page, a separate SvelteKit project (own `package.json`, `npm install` inside it;
+  prerendered static site). Its `README.md` explains the layout. The app's build, `npm run check` and
+  Tailwind (`@source not "../website"` in `src/app.css`) leave it out; check it with `npm run check` and
+  `npm run build` inside `website/`.
+- It imports the screenshots from `docs/screenshots` and the icon from `src-tauri/icons` (no copies), and
+  uses the app's Aurora color tokens and Onest font. Copy lives in `website/src/lib/content.ts`.
+- Deployed to GitHub Pages by `.github/workflows/website.yml` on pushes to `main` that touch `website/`,
+  `docs/screenshots/` or `src-tauri/icons/`. It's served from `/milestone-space` (`BASE_PATH`), so links use
+  `resolve()` from `$app/paths`, never a bare `/...`.
+
 ## Notes
 
 - The Rust crate is still named `client-tracker` (`client_tracker_lib`) from the original

@@ -1,0 +1,6 @@
+node_modules
+/build
+/.svelte-kit
+.env
+.env.*
+vite.config.js.timestamp-*

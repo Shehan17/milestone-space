@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* The website (its own project in website/) must not add its classes to the app's CSS. */
+@source not "../website";
 
 /*
  * MilestoneSpace design system ("Aurora" redesign, v2: graphite with a blue accent).
