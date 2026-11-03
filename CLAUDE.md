@@ -154,7 +154,9 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
   minimize / maximize / close (`data-tauri-drag-region` drags; the window permissions are in the
   capability). Its close goes through `CloseRequested`, so "Close to tray" still applies.
 - Release-only (`cfg(not(debug_assertions))`): single-instance (dev shares the identifier) and
-  turning autostart on at first run (marker file `autostart-configured` in the app data folder).
+  turning autostart on at first run (marker file `autostart-configured` in the app data folder), and while it's
+  on, rewriting the Run entry with the current exe path on every start (`configure_autostart`), so a reinstall
+  to another folder doesn't leave it pointing at a missing file.
 - Windows talk through the `inbox-changed` event (`src/lib/inbox.svelte.ts`).
 - `open_in_vscode` command runs `code.cmd <folder>`; "Open folder" uses the opener plugin (`src/lib/system.ts`).
 

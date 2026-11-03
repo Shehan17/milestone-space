@@ -261,14 +261,24 @@ fn set_quick_capture_keys(
 
 /// The installed app turns "start with Windows" on the first time it runs. After that the
 /// Settings page owns the choice, so turning it off sticks.
+/// While it's on, every start writes the entry again with this exe's path: reinstalling to another
+/// folder (the .msi goes to Program Files, the setup .exe to AppData\Local) would otherwise leave
+/// Windows starting a file that's gone. Off (in Settings or Task Manager) stays off.
 #[cfg(not(debug_assertions))]
-fn enable_autostart_once(app: &AppHandle) {
+fn configure_autostart(app: &AppHandle) {
     use tauri_plugin_autostart::ManagerExt;
     let Ok(dir) = app.path().app_data_dir() else { return };
     let marker = dir.join("autostart-configured");
-    if !marker.exists() && app.autolaunch().enable().is_ok() {
-        let _ = std::fs::create_dir_all(&dir);
-        let _ = std::fs::write(marker, "");
+    let autolaunch = app.autolaunch();
+    if !marker.exists() {
+        if autolaunch.enable().is_ok() {
+            let _ = std::fs::create_dir_all(&dir);
+            let _ = std::fs::write(marker, "");
+        }
+    } else if autolaunch.is_enabled().unwrap_or(false) {
+        if let Err(e) = autolaunch.enable() {
+            eprintln!("Couldn't update the start with Windows entry: {e}");
+        }
     }
 }
 
@@ -386,7 +396,7 @@ pub fn run() {
             }
 
             #[cfg(not(debug_assertions))]
-            enable_autostart_once(handle);
+            configure_autostart(handle);
 
             // The main window starts hidden (tauri.conf.json). Started with Windows, it stays in the
             // tray unless "Start minimized" is turned off.
