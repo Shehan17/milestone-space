@@ -212,5 +212,6 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
 ## Notes
 
 - The Rust crate is still named `client-tracker` (`client_tracker_lib`) from the original
-  scaffold. That's harmless; renaming it is optional and unrelated to the data folder.
+  scaffold. That's harmless; renaming it is optional and unrelated to the data folder. The exe is
+  `MilestoneSpace.exe` (`mainBinaryName` in tauri.conf.json); installs before that have `client-tracker.exe`.
 - Windows: the Bash tool is Git Bash, PowerShell is also available.
