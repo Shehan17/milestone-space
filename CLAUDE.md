@@ -14,6 +14,9 @@ SPA mode: `src/routes/+layout.ts` sets `ssr = false`, adapter-static with `fallb
 - `npm run seed:dev` — adds sample clients/projects/tasks to `tracker-dev.db` only
   (`-- --reset` empties it first). Dates are relative to today. Data is in `scripts/seed-dev.mjs`.
 - **Do not run `npm run tauri dev`** — the user runs the app themselves.
+- `npm run tauri build` makes only the NSIS installer (`bundle.targets` is `["nsis"]`), in
+  `src-tauri/target/release/bundle/nsis/`. No `.msi`: it installs to Program Files, the setup .exe per user to
+  `AppData\Local\MilestoneSpace`, and mixing the two left two copies and a broken startup entry.
 
 ## Data: do not lose it
 
