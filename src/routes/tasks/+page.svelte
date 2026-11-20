@@ -11,7 +11,7 @@
   import Skeleton from "$lib/components/Skeleton.svelte";
   import TaskForm, { defaultProjectId, emptyTask, rememberProject } from "$lib/components/TaskForm.svelte";
   import TaskRow from "$lib/components/TaskRow.svelte";
-  import { addTask, deleteTask, getMilestones, getProjects, getTasks, setTaskDone, setTaskStatus, setTasksPlanned, updateTask } from "$lib/db";
+  import { addTask, deleteTask, getMilestones, getProjects, getTasks, setTaskDone, setTaskStatus, setTasksPlanned, stashTask, updateTask } from "$lib/db";
   import { todayString } from "$lib/dates";
   import { ms } from "$lib/motion";
   import { onDataChanged } from "$lib/quickadd.svelte";
@@ -180,6 +180,15 @@
     });
   }
 
+  async function moveToStash(t: Task) {
+    const undo = await stashTask(t.id);
+    await load();
+    toast.undo("Moved to stash", async () => {
+      await undo();
+      await load();
+    });
+  }
+
   function deleteEditing() {
     const t = tasks.find((x) => x.id === editingId);
     formOpen = false;
@@ -232,7 +241,7 @@
         <div class="divide-y divide-line border-t border-line">
           {#each group.tasks as task (task.id)}
             <div animate:flip={{ duration: ms(200) }}>
-              <TaskRow {task} ontoggle={toggle} onedit={openEdit} ondelete={remove} onplan={togglePlanned} />
+              <TaskRow {task} ontoggle={toggle} onedit={openEdit} ondelete={remove} onplan={togglePlanned} onstash={moveToStash} />
             </div>
           {/each}
         </div>

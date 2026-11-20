@@ -178,7 +178,7 @@ export const shortcutGroups = (): { title: string; items: ShortcutInfo[] }[] => 
       { keys: [["X"], ["Space"]], label: "Mark done / not done" },
       { keys: [["Enter"], ["E"]], label: "Edit" },
       { keys: [["T"]], label: "Add to / remove from Today" },
-      { keys: [["S"]], label: "Move to the project's stash (project page)" },
+      { keys: [["S"]], label: "Move to the project's stash (project page, All tasks)" },
       { keys: [["Delete"]], label: "Delete (Ctrl+Z brings it back)" },
     ],
   },

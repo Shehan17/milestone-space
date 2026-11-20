@@ -657,7 +657,7 @@
               <!-- The title button opens it from the keyboard; the rest of the card is a bigger click target. -->
               <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
               <div
-                class="group card mb-3 flex min-w-0 flex-1 cursor-pointer flex-col gap-2.5 px-4.5 py-4"
+                class="group/milestone card mb-3 flex min-w-0 flex-1 cursor-pointer flex-col gap-2.5 px-4.5 py-4"
                 onclick={(e) => onMilestoneCardClick(e, m.id)}
               >
                 <div class="flex items-center justify-between gap-3">
@@ -674,7 +674,7 @@
                     <span class="shrink-0 text-faint"><Icon name={open ? "up" : "down"} size={16} /></span>
                   </button>
                   <div class="flex shrink-0 items-center gap-2">
-                    <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                    <div class="flex gap-0.5 opacity-0 group-hover/milestone:opacity-100 focus-within:opacity-100">
                       <button type="button" class="icon-btn" aria-label="Add task to {m.title}" title="Add task" onclick={() => openNewTask(m.id)}>
                         <Icon name="plus" size={16} />
                       </button>
