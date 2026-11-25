@@ -8,8 +8,10 @@ export const site = {
     "Offline, private project tracking for freelancers who juggle client work, side projects and study. " +
     "Plan your day, track milestones and capture ideas from anywhere. For Windows.",
   repo: "https://github.com/Shehan17/milestone-space",
-  // Installers are published as GitHub Releases.
+  // Installers are published as GitHub Releases. The download buttons look up the latest
+  // release's setup .exe with `releasesApi` (release.svelte.ts); `download` is the fallback.
   download: "https://github.com/Shehan17/milestone-space/releases/latest",
+  releasesApi: "https://api.github.com/repos/Shehan17/milestone-space/releases/latest",
   platform: "Windows 10 and 11",
   author: "Shehan",
   license: { name: "GNU GPL v3", url: "https://github.com/Shehan17/milestone-space/blob/main/LICENSE" },
