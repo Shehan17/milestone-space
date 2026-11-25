@@ -1,10 +1,14 @@
 <script lang="ts">
   import { appIcon } from "$lib/assets";
   import { features, pillars, tour } from "$lib/content";
+  import { onMount } from "svelte";
+  import { formatSize, loadLatestRelease, release } from "$lib/release.svelte";
   import { site } from "$lib/site";
   import Icon from "$lib/components/Icon.svelte";
   import Screenshot from "$lib/components/Screenshot.svelte";
   import Section from "$lib/components/Section.svelte";
+
+  onMount(loadLatestRelease);
 </script>
 
 <svelte:head>
@@ -26,7 +30,7 @@
       Offline and private: no account, no subscription.
     </p>
     <div class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-      <a href={site.download} class="btn btn-primary btn-lg">
+      <a href={release.url} class="btn btn-primary btn-lg">
         <Icon name="download" size={20} />
         Download for Windows
       </a>
@@ -102,7 +106,7 @@
       For {site.platform}. Your data stays in one file on your computer, with automatic backups.
     </p>
     <div class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-      <a href={site.download} class="btn btn-primary btn-lg">
+      <a href={release.url} class="btn btn-primary btn-lg">
         <Icon name="download" size={20} />
         Download for Windows
       </a>
@@ -111,6 +115,11 @@
         View on GitHub
       </a>
     </div>
+    {#if release.version && release.size}
+      <p class="mt-4 text-sm text-muted">
+        Version {release.version} · {formatSize(release.size)}
+      </p>
+    {/if}
   </div>
 </section>
 
