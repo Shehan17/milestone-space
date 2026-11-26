@@ -129,6 +129,7 @@
       priority: t.priority,
       due_date: t.due_date,
       status: t.status,
+      mentions: t.mentions,
     };
     formOpen = true;
   }

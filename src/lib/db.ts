@@ -21,6 +21,7 @@ import type {
   Priority,
   Task,
   TaskInput,
+  TaskMention,
   TaskStatus,
 } from "./types";
 import { MIGRATIONS, migrationSql } from "./migrations";
@@ -114,6 +115,42 @@ function toBool<T extends { is_done: boolean }>(rows: Raw<T>[]): T[] {
 
 /** Empty date inputs give "" — store those as NULL. */
 const dateOrNull = (value: string | null) => (value ? value : null);
+
+function isTaskMention(value: unknown): value is TaskMention {
+  if (!value || typeof value !== "object") return false;
+  const m = value as Record<string, unknown>;
+  return (
+    typeof m.name === "string" &&
+    typeof m.contact === "string" &&
+    (m.client_id === null || typeof m.client_id === "number")
+  );
+}
+
+/** Old rows and hand-edited databases may have no valid JSON here. */
+function parseMentions(value: unknown): TaskMention[] {
+  if (typeof value !== "string") return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter(isTaskMention) : [];
+  } catch {
+    return [];
+  }
+}
+
+function mentionsValue(mentions?: TaskMention[]): string {
+  return JSON.stringify(
+    (mentions ?? [])
+      .map((m) => ({ client_id: m.client_id ?? null, name: m.name.trim(), contact: m.contact.trim() }))
+      .filter((m) => m.name)
+  );
+}
+
+function toTasks(rows: Raw<Task>[]): Task[] {
+  return toBool(rows).map((task) => ({
+    ...task,
+    mentions: parseMentions(task.mentions as unknown as string),
+  }));
+}
 
 // ---------- Undo for deletes ----------
 
@@ -327,13 +364,14 @@ export async function getTasks(projectId?: number): Promise<Task[]> {
     `${TASK_SELECT} ${where}
      ORDER BY t.is_done, t.due_date IS NULL, t.due_date,
        CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, t.id`,
-    projectId === undefined ? [] : [projectId]
-  );
-  return toBool(rows);
+     projectId === undefined ? [] : [projectId]
+   );
+   return toTasks(rows);
 }
 
 /**
- * Values in column order: project_id, milestone_id, title, priority, due_date, status, is_done.
+ * Values in column order: project_id, milestone_id, title, priority, due_date, status, is_done, mentions.
+
  * A Misc task (no project) keeps only its title, priority and done state.
  */
 function taskValues(input: TaskInput) {
@@ -347,25 +385,27 @@ function taskValues(input: TaskInput) {
     misc ? null : dateOrNull(input.due_date),
     status,
     status === "done" ? 1 : 0, // is_done always follows status
+    mentionsValue(input.mentions),
   ];
 }
 
-/** Adds a task, optionally already planned for a day (the Today page's "New task"). */
-export async function addTask(input: TaskInput, plannedFor: string | null = null): Promise<void> {
+/** Adds a task, optionally already planned for a day (the Today page's "New task"). Returns its id. */
+export async function addTask(input: TaskInput, plannedFor: string | null = null): Promise<number> {
   const db = await getDb();
-  await db.execute(
-    `INSERT INTO tasks (project_id, milestone_id, title, priority, due_date, status, is_done, planned_for)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+  const result = await db.execute(
+    `INSERT INTO tasks (project_id, milestone_id, title, priority, due_date, status, is_done, mentions, planned_for)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [...taskValues(input), plannedFor]
   );
+  return result.lastInsertId!;
 }
 
 export async function updateTask(id: number, input: TaskInput): Promise<void> {
   const db = await getDb();
   await db.execute(
     `UPDATE tasks SET project_id = $1, milestone_id = $2, title = $3, priority = $4, due_date = $5,
-       status = $6, is_done = $7
-     WHERE id = $8`,
+       status = $6, is_done = $7, mentions = $8
+     WHERE id = $9`,
     [...taskValues(input), id]
   );
 }
@@ -418,7 +458,7 @@ export async function getStashedTasks(projectId?: number): Promise<Task[]> {
     `${TASK_SELECT} ${where} ORDER BY t.stashed_at DESC, t.id DESC`,
     projectId === undefined ? [] : [projectId]
   );
-  return toBool(rows);
+  return toTasks(rows);
 }
 
 /** Moves a task to the stash and off any day's plan. Undo brings it back, plan included. */

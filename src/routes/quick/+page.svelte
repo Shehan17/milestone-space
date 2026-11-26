@@ -2,7 +2,7 @@
   The quick capture box: its own small window, opened from anywhere with the global shortcut
   (src-tauri/src/lib.rs). Enter saves and clears the field, so you can add more; "Added to …" shows in the
   bottom bar for a moment. Esc or clicking elsewhere hides it and keeps what was typed for next time. Like the New dialog,
-  ← / → pick what to add (Inbox, Today, a project task, Misc) and ↑ / ↓ the task's project.
+  ← / → pick what to add (Inbox, Today, a project task, Misc), ↑ / ↓ the task's project and Shift+↑ / ↓ its milestone.
 -->
 <script lang="ts">
   import { onMount } from "svelte";
@@ -12,11 +12,12 @@
   import ProjectDot from "$lib/components/ProjectDot.svelte";
   import { defaultProjectId, emptyTask, rememberProject } from "$lib/components/TaskForm.svelte";
   import { todayString } from "$lib/dates";
-  import { addInboxItem, addTask, getProjects } from "$lib/db";
+  import { addInboxItem, addTask, getMilestones, getProjects } from "$lib/db";
   import { notifyInboxChanged } from "$lib/inbox.svelte";
   import {
     KIND_LABELS,
     kindStep,
+    milestoneStep,
     notifyDataChangedEverywhere,
     picksProject,
     projectChoices,
@@ -26,7 +27,7 @@
     type QuickAddKind,
   } from "$lib/quickadd.svelte";
   import { isArchived } from "$lib/settings.svelte";
-  import { MISC_LABEL, type Project } from "$lib/types";
+  import { MISC_LABEL, type Milestone, type Project } from "$lib/types";
 
   const appWindow = getCurrentWindow();
 
@@ -47,13 +48,17 @@
   /** While a save is running: Enter again does nothing. */
   let saving = false;
   let projects = $state<Project[]>([]);
-  // What Enter adds, and the task's project (null: Misc). Kept while the window is hidden.
+  let milestones = $state<Milestone[]>([]);
+  // What Enter adds, and the task's project (null: Misc) and milestone. Kept while the window is hidden.
   let kind = $state<CaptureKind>("idea");
   let projectId = $state<number | null>(null);
+  let milestoneId = $state<number | null>(null);
   let loaded = false;
 
   let projectIds = $derived(projectChoices(kind, projects));
   let project = $derived(projects.find((p) => p.id === projectId));
+  let projectMilestones = $derived(milestones.filter((m) => m.project_id === projectId));
+  let milestone = $derived(projectMilestones.find((m) => m.id === milestoneId));
   let isTask = $derived(kind !== "idea");
   let icon = $derived<IconName>(KINDS.find((k) => k.value === kind)?.icon ?? "inbox");
   /** Where the last save went, shown in the bottom bar for CONFIRM_MS ("" when not shown). */
@@ -77,12 +82,14 @@
     );
   }
 
-  // Fresh each time it's shown: projects may have been added or completed since.
-  async function loadProjects() {
-    const all = await getProjects();
-    projects = all.filter((p) => p.status !== "completed" && !isArchived(p));
+  // Fresh each time it's shown: projects and milestones may have changed since.
+  async function loadData() {
+    const [allProjects, allMilestones] = await Promise.all([getProjects(), getMilestones()]);
+    projects = allProjects.filter((p) => p.status !== "completed" && !isArchived(p));
+    milestones = allMilestones.filter((m) => projects.some((p) => p.id === m.project_id));
     if (!loaded) projectId = defaultProjectId(projects);
     else if (projectId !== null && !projects.some((p) => p.id === projectId)) projectId = null;
+    if (milestoneId !== null && !milestones.some((m) => m.id === milestoneId && m.project_id === projectId)) milestoneId = null;
     loaded = true;
     fitProject();
   }
@@ -94,14 +101,14 @@
 
   onMount(() => {
     focusInput();
-    loadProjects();
+    loadData();
     // Shown again: focus the box. Lost focus (clicked elsewhere): get out of the way.
     const unlisten = appWindow.onFocusChanged(async ({ payload: focused }) => {
       if (focused) {
         clearTimeout(confirmTimer);
         addedTo = "";
         focusInput();
-        await loadProjects();
+        await loadData();
       } else {
         appWindow.hide();
       }
@@ -129,7 +136,8 @@
           error = `No active projects yet. Pick ${MISC_LABEL}, or create a project in the app.`;
           return;
         }
-        await addTask(emptyTask(project.id, { title }));
+        const milestone_id = projectMilestones.some((m) => m.id === milestoneId) ? milestoneId : null;
+        await addTask(emptyTask(project.id, { title, milestone_id }));
         rememberProject(project.id);
         to = project.name;
       } else if (kind === "misc") {
@@ -164,17 +172,41 @@
   function setKind(next: CaptureKind) {
     kind = next;
     error = "";
+    milestoneId = null;
     fitProject();
   }
 
-  // In the text field: ← / → what to add, ↑ / ↓ the task's project.
+  function changeProject(by: number) {
+    if (projectIds.length === 0) return;
+    const next = stepIn(projectIds, projectId, by);
+    if (next !== projectId) milestoneId = null;
+    projectId = next;
+    input?.focus();
+  }
+
+  function changeMilestone(by: number) {
+    if (projectMilestones.length === 0) return;
+    milestoneId = stepIn(projectMilestones.map((m) => m.id), milestoneId, by);
+    input?.focus();
+  }
+
+  // In the text field: ← / → what to add, ↑ / ↓ the project, Shift+↑ / ↓ its milestone.
   function oninputkeydown(event: KeyboardEvent) {
     const by = kindStep(event);
     if (by) {
       setKind(stepIn(KINDS.map((k) => k.value), kind, by));
-    } else if (picksProject(kind) && projectIds.length > 0) {
+      return;
+    }
+    if (picksProject(kind) && projectIds.length > 0) {
       const step = projectStep(event);
-      if (step) projectId = stepIn(projectIds, projectId, step);
+      if (step) {
+        changeProject(step);
+        return;
+      }
+    }
+    if (kind === "task" && projectMilestones.length > 0) {
+      const step = milestoneStep(event);
+      if (step) changeMilestone(step);
     }
   }
 </script>
@@ -209,13 +241,10 @@
         {#if projectIds.length > 0}
           <button
             type="button"
-            class="chip chip-on flex max-w-48 shrink-0 items-center gap-1.5"
-            title="Project (↑ / ↓ to change)"
+            class="chip chip-on flex max-w-40 shrink-0 items-center gap-1.5"
+            title="Project (↑ / ↓ or click to change)"
             aria-live="polite"
-            onclick={() => {
-              projectId = stepIn(projectIds, projectId, 1);
-              input?.focus();
-            }}
+            onclick={() => changeProject(1)}
           >
             {#if project}
               <ProjectDot color={project.color} />
@@ -227,6 +256,18 @@
         {:else}
           <span class="shrink-0 text-xs text-faint">No active projects</span>
         {/if}
+      {/if}
+      {#if kind === "task" && projectMilestones.length > 0}
+        <button
+          type="button"
+          class="chip flex max-w-32 shrink-0 items-center gap-1.5 {milestoneId !== null ? 'chip-on' : ''}"
+          title="Milestone (Shift+↑ / ↓ or click to change)"
+          aria-live="polite"
+          onclick={() => changeMilestone(1)}
+        >
+          <Icon name="flag" size={13} />
+          <span class="truncate">{milestone?.title ?? "No milestone"}</span>
+        </button>
       {/if}
     </div>
   </div>
@@ -244,6 +285,10 @@
       {#if picksProject(kind)}
         <span>·</span>
         <span class="inline-flex items-center gap-1.5"><span class="inline-flex gap-0.5"><kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd></span> project</span>
+      {/if}
+      {#if kind === "task" && projectMilestones.length > 0}
+        <span>·</span>
+        <span class="inline-flex items-center gap-1.5"><kbd class="kbd">Shift</kbd>+<span class="inline-flex gap-0.5"><kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd></span> milestone</span>
       {/if}
       <span>·</span>
       <span class="inline-flex items-center gap-1.5"><kbd class="kbd">Esc</kbd> close</span>

@@ -363,6 +363,7 @@
       priority: t.priority,
       due_date: t.due_date,
       status: t.status,
+      mentions: t.mentions,
     };
     taskFormOpen = true;
   }
@@ -833,6 +834,11 @@
                     {#if task.milestone_title}
                       <span class="flex items-center gap-1 truncate text-xs text-faint">
                         <Icon name="flag" size={12} /><span class="truncate">{task.milestone_title}</span>
+                      </span>
+                    {/if}
+                    {#if task.mentions.length > 0}
+                      <span class="flex items-center gap-1 truncate text-xs text-faint" title="Mentioned: {task.mentions.map((m) => m.name).join(', ')}">
+                        <Icon name="clients" size={12} /><span class="truncate">{task.mentions.map((m) => m.name).join(', ')}</span>
                       </span>
                     {/if}
                   </button>

@@ -1,10 +1,10 @@
 <script module lang="ts">
   import { settings } from "$lib/settings.svelte";
-  import type { TaskInput as NewTask } from "$lib/types";
+  import type { Client, TaskInput as NewTask } from "$lib/types";
 
   /** A blank task (in a project, or a Misc task with null), with the default priority from Settings. */
   export function emptyTask(project_id: number | null, values: Partial<NewTask> = {}): NewTask {
-    return { project_id, milestone_id: null, title: "", priority: settings.default_priority, due_date: null, status: "todo", ...values };
+    return { project_id, milestone_id: null, title: "", priority: settings.default_priority, due_date: null, status: "todo", mentions: [], ...values };
   }
 
   // The project of the last task added, so the next new task starts there (a display preference).
@@ -38,10 +38,13 @@
 </script>
 
 <script lang="ts">
+  import { getClients } from "$lib/db";
   import { MISC_LABEL, PRIORITIES, PRIORITY_LABELS, TASK_STATUSES, TASK_STATUS_LABELS, type Milestone, type TaskInput } from "$lib/types";
   import DateInput from "./DateInput.svelte";
   import Field from "./Field.svelte";
   import FilterPills from "./FilterPills.svelte";
+  import Icon from "./Icon.svelte";
+  import PersonPicker from "./PersonPicker.svelte";
 
   interface Props {
     values: TaskInput;
@@ -55,8 +58,25 @@
   const uid = $props.id();
 
   let projectMilestones = $derived(milestones.filter((m) => m.project_id === values.project_id));
+  let mentions = $derived(values.mentions ?? []);
 
   const priorityOptions = PRIORITIES.map((p) => ({ value: p, label: PRIORITY_LABELS[p] }));
+
+  let pickerOpen = $state(false);
+  let clients = $state<Client[]>([]);
+
+  async function openPicker() {
+    pickerOpen = true;
+    try {
+      clients = await getClients();
+    } catch {
+      clients = [];
+    }
+  }
+
+  function removeMention(index: number) {
+    values.mentions = mentions.filter((_, i) => i !== index);
+  }
 </script>
 
 <Field label="Title" error={values.title.trim() ? null : "Give the task a title"}>
@@ -86,6 +106,38 @@
     </select>
   </Field>
 {/if}
+
+<div>
+  <span class="mb-1 block text-xs font-medium text-muted" aria-hidden="true">Mention person</span>
+  <div class="flex flex-wrap items-center gap-1.5">
+    {#each mentions as person, i (i)}
+      <button
+        type="button"
+        class="chip chip-on flex max-w-56 items-center gap-1.5"
+        title="Remove {person.name}"
+        onclick={() => removeMention(i)}
+      >
+        <Icon name={person.client_id === null ? "clients" : "projects"} size={12} />
+        <span class="truncate">{person.name}</span>
+        <span class="truncate text-2xs opacity-70">{person.contact}</span>
+        <Icon name="x" size={12} />
+      </button>
+    {:else}
+      <span class="text-xs text-faint">No one mentioned</span>
+    {/each}
+    <button type="button" class="btn btn-secondary btn-sm" onclick={openPicker}>
+      <Icon name="plus" size={12} />Add person
+    </button>
+  </div>
+</div>
+
+<PersonPicker
+  open={pickerOpen}
+  {clients}
+  selected={mentions}
+  onchange={(next) => (values.mentions = next)}
+  onclose={() => (pickerOpen = false)}
+/>
 
 <div>
   <span class="mb-1 block text-xs font-medium text-muted" aria-hidden="true">Priority</span>

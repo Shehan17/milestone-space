@@ -163,6 +163,7 @@ export const shortcutGroups = (): { title: string; items: ShortcutInfo[] }[] => 
       { keys: [quickCaptureKeys().split("+")], label: "Quick capture to Inbox (even when the app is hidden)" },
       { keys: [["←"], ["→"]], label: "In quick capture or the New dialog: what to add (Inbox, Today, project task, Misc)" },
       { keys: [["↑"], ["↓"]], label: "In quick capture or the New dialog: previous / next project for the task" },
+      { keys: [["Shift", "↑"], ["Shift", "↓"]], label: "In quick capture: previous / next milestone for the task" },
       { keys: [["?"]], label: "Show keyboard shortcuts" },
       { keys: [["N"]], label: "New: the page's own (task, project, client, note, inbox item), else the New dialog" },
       { keys: [["J"]], label: "Focus the first task" },
