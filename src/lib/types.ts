@@ -129,6 +129,14 @@ export interface Milestone extends MilestoneInput {
   project_color: string;
 }
 
+/** A client or another person mentioned on a task. Contact is an email address or phone number. */
+export interface TaskMention {
+  /** Set when the mention is an existing client; null for an ad-hoc person. */
+  client_id: number | null;
+  name: string;
+  contact: string;
+}
+
 export interface TaskInput {
   /** null for a task with no project; such a task has no milestone either. */
   project_id: number | null;
@@ -138,9 +146,12 @@ export interface TaskInput {
   due_date: string | null;
   /** Saving also sets is_done (true exactly when status is "done"). */
   status: TaskStatus;
+  /** Optional for older callers; db.ts stores it as JSON. */
+  mentions?: TaskMention[];
 }
 
 export interface Task extends TaskInput {
+  mentions: TaskMention[];
   id: number;
   is_done: boolean;
   /** Position within its board column; null = after the ordered ones. */

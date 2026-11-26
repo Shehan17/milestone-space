@@ -93,7 +93,7 @@
 
   function openEdit(t: Task) {
     editingId = t.id;
-    draft = { project_id: t.project_id, milestone_id: t.milestone_id, title: t.title, priority: t.priority, due_date: t.due_date, status: t.status };
+    draft = { project_id: t.project_id, milestone_id: t.milestone_id, title: t.title, priority: t.priority, due_date: t.due_date, status: t.status, mentions: t.mentions };
   }
 
   async function saveEdit() {

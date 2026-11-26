@@ -228,6 +228,10 @@ export const MIGRATIONS: string[] = [
   INSERT INTO notes (client_id, content, created_at, updated_at)
   SELECT id, notes, created_at, created_at FROM clients WHERE trim(notes) <> '';
   `,
+
+  // v13: person mentioned on a task (an existing client, or a name with an email/phone number).
+  // The list is small and only edited with its task, so it is kept as JSON on the task row.
+  `ALTER TABLE tasks ADD COLUMN mentions TEXT NOT NULL DEFAULT '[]';`,
 ];
 
 /** The full SQL for one migration: one transaction, foreign keys off, bumps user_version. */

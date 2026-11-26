@@ -114,7 +114,7 @@
     <p class="truncate text-sm {task.is_done ? 'text-faint line-through' : 'text-fg'}">
       {task.title}
     </p>
-    {#if showProject || milestoneTitle || task.status === "in_progress"}
+    {#if showProject || milestoneTitle || task.status === "in_progress" || task.mentions.length > 0}
       <p class="flex items-center gap-1.5 truncate text-xs text-faint">
         {#if task.status === "in_progress"}
           <span class="inline-flex shrink-0 items-center gap-1 text-accent-text">
@@ -134,6 +134,15 @@
           {#if showProject}<span aria-hidden="true">·</span>{/if}
           <span class="inline-flex min-w-0 items-center gap-1">
             {#if !showProject}<Icon name="flag" size={12} />{/if}<span class="truncate">{milestoneTitle}</span>
+          </span>
+        {/if}
+        {#if task.mentions.length > 0}
+          {#if showProject || milestoneTitle}<span aria-hidden="true">·</span>{/if}
+          <span
+            class="inline-flex min-w-0 items-center gap-1"
+            title="Mentioned: {task.mentions.map((m) => m.name).join(', ')}"
+          >
+            <Icon name="clients" size={12} /><span class="truncate">{task.mentions.length}</span>
           </span>
         {/if}
       </p>
