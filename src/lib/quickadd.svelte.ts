@@ -93,6 +93,14 @@ export function projectStep(event: KeyboardEvent): number {
   return event.key === "ArrowDown" ? 1 : -1;
 }
 
+/** Shift+↑ / ↓ in a text field picks the previous / next milestone of the chosen project. */
+export function milestoneStep(event: KeyboardEvent): number {
+  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return 0;
+  if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return 0;
+  event.preventDefault();
+  return event.key === "ArrowDown" ? 1 : -1;
+}
+
 // ----- Getting started (Today page) -----
 
 const CAPTURED_KEY = "milestonespace.capturedIdea";
